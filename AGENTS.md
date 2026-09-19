@@ -1,6 +1,9 @@
-# AGENTS.md — Element X Android
+# AGENTS.md — Family Chat Android
 
-> **Repo:** `element-hq/element-x-android` — Android Matrix client (Compose UI + `matrix-rust-sdk`).
+> **Repo:** `unicornops/familychat-android` — Android Matrix client (Compose UI + `matrix-rust-sdk`),
+> a fork of `element-hq/element-x-android`. Default branch `familychat`. Keep the fork diff small:
+> prefer configuration in `plugins/src/main/kotlin/config/BuildTimeConfig.kt`, `appconfig/` and
+> `features/enterprise/impl-foss/` over touching upstream code.
 
 ---
 
