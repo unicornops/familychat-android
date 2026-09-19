@@ -1,11 +1,14 @@
 name: Sonar
 
+# DISABLED. Upstream points this at Element's SonarCloud organisation, which we have no token for.
+# Family Chat uses a self-hosted SonarQube Server (the same one family-chat and dollarbox use), which
+# needs SONAR_HOST_URL and SONAR_TOKEN as *environment* secrets plus a new sonar.projectKey.
+# Rob has to create those secrets; until then this only runs on manual dispatch so it cannot go red.
+# Re-enabling it is tracked in unicornops/family-chat#234 section 3.
+# The Gradle `sonarqube` plugin configuration is deliberately left in place.
+
 on:
   workflow_dispatch:
-  pull_request:
-  merge_group:
-  push:
-    branches: [ main, develop ]
 
 permissions: {}
 
@@ -19,10 +22,10 @@ jobs:
   sonar:
     name: Sonar Quality Checks
     runs-on: ubuntu-latest
-    # Allow all jobs on main and develop. Just one per PR.
+    # Allow all jobs on familychat. Just one per PR.
     concurrency:
       group: ${{ format('sonar-{0}', github.ref) }}
-      cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/familychat' }}
     steps:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
@@ -40,7 +43,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Ensure we are building the branch and not the branch after being merged on develop
+          # Ensure we are building the branch and not the branch after being merged on familychat
           # https://github.com/actions/checkout/issues/881
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
           persist-credentials: false
@@ -52,7 +55,7 @@ jobs:
       - name: Configure gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
-          cache-read-only: ${{ github.ref != 'refs/heads/develop' }}
+          cache-read-only: ${{ github.ref != 'refs/heads/familychat' }}
       - name: Build debug code and test fixtures
         run: ./gradlew assembleGplayDebug createFullJarDebugTestFixtures :app:createFullJarGplayDebugTestFixtures $CI_GRADLE_ARG_PROPERTIES
       - name: 🔊 Publish results to Sonar

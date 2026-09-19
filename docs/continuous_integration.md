@@ -19,7 +19,15 @@ This document gives some information about how we take advantage of the continuo
 
 ## CI tools
 
-We use GitHub Actions to configure and perform the CI.
+We use GitHub Actions to configure and perform the CI. Actions are pinned by commit SHA.
+
+The fork runs a subset of upstream's workflows: `build` (debug APKs), `tests` (unit tests),
+`quality` (forbidden patterns, dependencies, konsist, compose stability, lint, ktlint, detekt, docs,
+shellcheck, zizmor), `validate-lfs`, `gradle-wrapper-update` and `recordScreenshots`. `sonar` is
+present but runs on manual dispatch only until it is repointed at our self-hosted SonarQube server.
+Upstream workflows that need Element's secrets, accounts or infrastructure (release, nightly,
+Localazy, SAS strings, danger, enterprise, triage, GitHub Pages, Maestro) are not in this fork; see
+the README section "Merging upstream releases".
 
 ## Rules
 
@@ -43,16 +51,13 @@ The CI checks that:
 1. The code is compiling, without any warnings, for all the app build types and variants
 2. The tests are passing
 3. The code quality is good (detekt, ktlint, lint)
-4. The code is running and smoke tests are passing (maestro)
-5. The PullRequest itself is good (with danger)
-6. Files that must be added with git-lfs are added with git-lfs
+5. Files that must be added with git-lfs are added with git-lfs
+6. GitHub Actions workflows are safe (zizmor)
 
 ## What is the CI reporting
 
-The CI reports:
-
-1. Code coverage reports
-2. Sonar reports
+Nothing yet. Coverage upload (codecov) and Sonar reporting both need credentials that the fork does
+not have; see [unicornops/family-chat#234](https://github.com/unicornops/family-chat/issues/234).
 
 ## Current choices
 

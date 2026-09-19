@@ -1,114 +1,164 @@
-[![Latest build](https://github.com/element-hq/element-x-android/actions/workflows/build.yml/badge.svg?query=branch%3Adevelop)](https://github.com/element-hq/element-x-android/actions/workflows/build.yml?query=branch%3Adevelop)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=element-x-android&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=element-x-android)
-[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=element-x-android&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=element-x-android)
-[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=element-x-android&metric=bugs)](https://sonarcloud.io/summary/new_code?id=element-x-android)
-[![codecov](https://codecov.io/github/element-hq/element-x-android/branch/develop/graph/badge.svg?token=ecwvia7amV)](https://codecov.io/github/element-hq/element-x-android)
-[![Element X Android Matrix room #element-x-android:matrix.org](https://img.shields.io/matrix/element-x-android:matrix.org.svg?label=%23element-x-android:matrix.org&logo=matrix&server_fqdn=matrix.org)](https://matrix.to/#/#element-x-android:matrix.org)
-[![Localazy](https://img.shields.io/endpoint?url=https%3A%2F%2Fconnect.localazy.com%2Fstatus%2Felement%2Fdata%3Fcontent%3Dall%26title%3Dlocalazy%26logo%3Dtrue)](https://localazy.com/p/element)
+[![APK Build](https://github.com/unicornops/familychat-android/actions/workflows/build.yml/badge.svg?branch=familychat)](https://github.com/unicornops/familychat-android/actions/workflows/build.yml?query=branch%3Afamilychat)
+[![Test](https://github.com/unicornops/familychat-android/actions/workflows/tests.yml/badge.svg?branch=familychat)](https://github.com/unicornops/familychat-android/actions/workflows/tests.yml?query=branch%3Afamilychat)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
-# Element X Android
+# Family Chat Android
 
-Element X Android is the next-generation [Matrix](https://matrix.org/) client provided by [Element](https://element.io/).
+Family Chat Android is the Android client for [Family Chat](https://safechat.family), a private
+[Matrix](https://matrix.org/) chat server for each family. It is a fork of
+[Element X Android](https://github.com/element-hq/element-x-android) by Element, licensed under the
+AGPL-3.0. The source for this fork is at https://github.com/unicornops/familychat-android.
 
-Compared to the previous-generation [Element Classic](https://github.com/element-hq/element-android), the application is a total rewrite, using the [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk) underneath and targeting devices running Android 7+. The UI layer is written using [Jetpack Compose](https://developer.android.com/jetpack/compose), and the navigation is managed using [Appyx](https://github.com/bumble-tech/appyx).
-
-[<img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80">](https://play.google.com/store/apps/details?id=io.element.android.x)[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/io.element.android.x)
-
-## Table of contents
+The app is written in Kotlin with [Jetpack Compose](https://developer.android.com/jetpack/compose) on
+top of the [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk), with navigation managed by
+[Appyx](https://github.com/bumble-tech/appyx).
 
 <!--- TOC -->
 
-* [Screenshots](#screenshots)
-* [Translations](#translations)
-* [Rust SDK](#rust-sdk)
+* [What is different from upstream](#what-is-different-from-upstream)
 * [Status](#status)
 * [Minimum SDK version](#minimum-sdk-version)
-* [Contributing](#contributing)
 * [Build instructions](#build-instructions)
+  * [Build variants](#build-variants)
+  * [Signing](#signing)
+  * [Push notifications](#push-notifications)
+* [Merging upstream releases](#merging-upstream-releases)
+* [Contributing](#contributing)
 * [Support](#support)
 * [Copyright and License](#copyright-and-license)
 
 <!--- END -->
 
-## Screenshots
+## What is different from upstream
 
-Here are some screenshots of the application:
+The fork keeps as close to upstream as an honest rebrand allows, and pushes almost all of its
+configuration through the objects upstream already provides for branded builds
+(`plugins/src/main/kotlin/config/BuildTimeConfig.kt`, `appconfig/`, `features/enterprise/impl-foss/`).
+There is deliberately **no** private enterprise overlay: everything is rebranded in this public repo.
 
-<!--
-Commands run before taking the screenshots:
-adb shell settings put system time_12_24 24
-adb shell am broadcast -a com.android.systemui.demo -e command enter
-adb shell am broadcast -a com.android.systemui.demo -e command clock -e hhmm 1337
-adb shell am broadcast -a com.android.systemui.demo -e command network -e mobile show -e level 4
-adb shell am broadcast -a com.android.systemui.demo -e command network -e wifi show -e level 4
-adb shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false
-adb shell am broadcast -a com.android.systemui.demo -e command battery -e plugged false -e level 100
+* Application id `family.safechat.android`, app name "Family Chat", our own launcher icons and brand
+  colours (teal `#0D9488`, accent `#F97316`).
+* Account provider locked to `safechat.family` and its subdomains. The server picker and account
+  creation are hidden: accounts are created by a parent in the control panel.
+* App Links on `safechat.family/app/...`; Element's `*.element.io` link handling removed.
+* Website, privacy, terms and OAuth client metadata point at `safechat.family`.
+* No third-party analytics or crash reporting. PostHog and Sentry are excluded from the build
+  entirely, and the MapTiler key is empty (location sharing stays disabled).
+* Push goes to our own gateway at `https://push.safechat.family`. UnifiedPush is kept and is
+  currently the only push provider; see [Push notifications](#push-notifications).
+* `LICENSE-COMMERCIAL` removed: that is Element's commercial offer, not ours. This fork is AGPL-3.0
+  only. Upstream copyright and licence notices are kept.
 
-And to exit demo mode:
-adb shell am broadcast -a com.android.systemui.demo -e command exit
--->
-
-|<img src="./docs/images-lfs/screen_1_light.png" width="280" />|<img src="./docs/images-lfs/screen_2_light.png" width="280" />|<img src="./docs/images-lfs/screen_3_light.png" width="280" />|<img src="./docs/images-lfs/screen_4_light.png" width="280" />|
-|-|-|-|-|
-|<img src="./docs/images-lfs/screen_1_dark.png" width="280" />|<img src="./docs/images-lfs/screen_2_dark.png" width="280" />|<img src="./docs/images-lfs/screen_3_dark.png" width="280" />|<img src="./docs/images-lfs/screen_4_dark.png" width="280" />|
-
-## Translations
-
-Element X Android supports many languages. You can help us to translate the app in your language by joining our [Localazy project](https://localazy.com/p/element). You can also help us to improve the existing translations.
-
-Note that for now, we keep control on the French and German translations.
-
-Translations can be checked screen per screen using our tool Element X Android Gallery, available at https://element-hq.github.io/element-x-android/. Note that this page is updated every Tuesday.
-
-More instructions about translating the application can be found at [CONTRIBUTING.md](CONTRIBUTING.md#strings).
-
-## Rust SDK
-
-Element X leverages the [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk) through an FFI layer that the final client can directly import and use.
-
-We're doing this as a way to share code between platforms and while we've seen promising results it's still in the experimental stage and bound to change.
+Work still to do is tracked in [unicornops/family-chat#234](https://github.com/unicornops/family-chat/issues/234).
 
 ## Status
 
-This project is actively developed and supported. New users are recommended to use Element X instead of the previous-generation app.
+Pre-release. Nothing has been published to Google Play yet.
 
 ## Minimum SDK version
 
-Element X Android requires a minimum SDK version of 24 (Android 7.0, Nougat). We aim to support devices running Android 7.0 and above, which covers a wide range of devices still in use today.
-
-Element Android Enterprise requires a minimum SDK version of 33 (Android 13, Tiramisu). For Element Enterprise, we support only devices that still receive security updates, which means devices running Android 13 and above. Android does not have a documented support policy, but some information can be found at [https://endoflife.date/android](https://endoflife.date/android).
-
-## Contributing
-
-Want to get actively involved in the project? You're more than welcome! A good way to start is to check the issues that are labelled with the [good first issue](https://github.com/element-hq/element-x-android/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) label. Let us know by commenting the issue that you're starting working on it.
-
-But first make sure to read our [contribution guide](CONTRIBUTING.md) first.
-
-You can also come chat with the community in the Matrix [room](https://matrix.to/#/#element-x-android:matrix.org) dedicated to the project.
+Family Chat Android requires a minimum SDK version of 24 (Android 7.0, Nougat).
 
 ## Build instructions
 
-Just clone the project and open it in Android Studio. Make sure to select the
-`app` configuration when building (as we also have sample apps in the project).
+Clone the project and open it in Android Studio, or build from the command line with JDK 21:
 
-To build against a local copy of the Rust SDK, see the [Developer
-onboarding](docs/_developer_onboarding.md#building-the-sdk-locally) instructions.
+```bash
+./gradlew :app:assembleGplayDebug
+```
+
+To build against a local copy of the Rust SDK, see the
+[Developer onboarding](docs/_developer_onboarding.md#building-the-sdk-locally) instructions.
+
+### Build variants
+
+Upstream's two store flavours are kept: `gplay` and `fdroid`. They currently produce the same push
+behaviour because Firebase is disabled (see below), so `gplay` is the one to build.
+
+### Signing
+
+There are no release signing keys yet. `release` and `nightly` builds fall back to upstream's
+checked-in debug keystore, so they must not be published. Play App Signing and an upload key stored in
+a GitHub environment are tracked in the parent issue.
+
+### Push notifications
+
+There is no Firebase project for `family.safechat.android` yet, so
+`BuildTimeConfig.PUSH_CONFIG_INCLUDE_FIREBASE` is `false` and the FCM push provider is left out of the
+build. Element's Firebase credentials have been removed from
+`libraries/pushproviders/firebase/src/*/res/values/firebase.xml` and replaced with obvious
+placeholders. To enable FCM: create the Firebase Android app, copy the values from its
+`google-services.json` into those files, and flip the flag back to `true`.
+
+UnifiedPush works today and defaults to our gateway at `https://push.safechat.family`
+(hosting is tracked in unicornops/family-chat#241).
+
+## Merging upstream releases
+
+The fork keeps a GitHub fork relationship with `element-hq/element-x-android`, and the default branch
+is `familychat`. Upstream ships a release roughly monthly, tagged `vYY.MM.N`.
+
+```bash
+# once per clone
+git remote add upstream https://github.com/element-hq/element-x-android.git
+# never push to upstream
+git remote set-url --push upstream DISABLED
+
+git fetch upstream --tags
+git checkout familychat
+git checkout -b chore/merge-upstream-vYY.MM.N
+git merge vYY.MM.N
+```
+
+Conflicts concentrate in a small number of files, in roughly this order of likelihood:
+
+1. `plugins/src/main/kotlin/config/BuildTimeConfig.kt` and `plugins/src/main/kotlin/ModulesConfig.kt`
+2. `app/build.gradle.kts`, `settings.gradle.kts` and `app/src/main/AndroidManifest.xml`
+3. `appconfig/`
+4. `features/enterprise/impl-foss/`
+5. `.github/workflows/` (several upstream workflows are deleted in the fork, see below)
+
+Always keep our values, and read upstream's diff for *new* configuration keys that need a Family Chat
+value. After merging, run `./gradlew :app:assembleGplayDebug test` and open a PR against `familychat`.
+
+The following upstream workflows are intentionally absent because they depend on Element's
+secrets, accounts or infrastructure: `build_enterprise`, `danger`, `fork-pr-notice`,
+`generate_github_pages`, `maestro-local`, `nightly`, `nightlyReports`, `post-release`, `pull_request`,
+`release`, `stale-issues`, `sync-localazy`, `sync-sas-strings`, `triage-incoming` and
+`triage-labelled`. `sonar.yml` is kept but runs on manual dispatch only until it is repointed at our
+self-hosted SonarQube server.
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md). Commits follow
+[Conventional Commits](https://www.conventionalcommits.org/).
+
+Changes that are not Family Chat specific are better sent
+[upstream](https://github.com/element-hq/element-x-android) so everyone benefits.
 
 ## Support
 
-When you are experiencing an issue on Element X Android, please first search in [GitHub issues](https://github.com/element-hq/element-x-android/issues)
-and then in [#element-x-android:matrix.org](https://matrix.to/#/#element-x-android:matrix.org).
-If after your research you still have a question, ask at [#element-x-android:matrix.org](https://matrix.to/#/#element-x-android:matrix.org). Otherwise feel free to create a GitHub issue if you encounter a bug or a crash, by explaining clearly in detail what happened. You can also perform bug reporting from the application settings. This is especially recommended when you encounter a crash.
+Family Chat users should use the help pages at https://safechat.family/docs/ or contact support
+through the control panel. Bugs in this fork can be raised as
+[GitHub issues](https://github.com/unicornops/familychat-android/issues).
 
 ## Copyright and License
 
+Copyright (c) 2026 unicornops
 Copyright (c) 2025 Element Creations Ltd.
 Copyright (c) 2022 - 2025 New Vector Ltd.
 
-This software is dual licensed by Element Creations Ltd (Element). It can be used either:
+Upstream Element X Android is dual licensed by Element Creations Ltd under the GNU Affero General
+Public License v3 or a paid-for Element Commercial License. This fork is distributed **only** under
+the terms of the GNU Affero General Public License, either version 3 of the License, or (at your
+option) any later version. See [LICENSE](LICENSE).
 
-(1) for free under the terms of the GNU Affero General Public License (as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version); OR
+Family Chat is a fork of Element X Android by Element (AGPL-3.0); source at
+https://github.com/unicornops/familychat-android
 
-(2) under the terms of a paid-for Element Commercial License agreement between you and Element (the terms of which may vary depending on what you and Element have agreed to).
+"Element" and the Element logo are trademarks of Element Creations Ltd and are not used by this fork.
 
-Unless required by applicable law or agreed to in writing, software distributed under the Licenses is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the Licenses for the specific language governing permissions and limitations under the Licenses.
+Unless required by applicable law or agreed to in writing, software distributed under the License is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+implied. See the License for the specific language governing permissions and limitations under the
+License.
