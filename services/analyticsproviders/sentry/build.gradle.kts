@@ -1,6 +1,5 @@
 import config.BuildTimeConfig
 import extension.buildConfigFieldStr
-import extension.readLocalProperty
 import extension.setupDependencyInjection
 import extension.testCommonDependencies
 
