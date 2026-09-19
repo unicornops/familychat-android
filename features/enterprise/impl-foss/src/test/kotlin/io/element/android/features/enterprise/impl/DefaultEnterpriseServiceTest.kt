@@ -19,15 +19,38 @@ import org.junit.Test
 
 class DefaultEnterpriseServiceTest {
     @Test
-    fun homeserverWhitelist() {
+    fun `homeserverAllowList only contains the Family Chat account provider`() {
         val defaultEnterpriseService = DefaultEnterpriseService()
-        assertThat(defaultEnterpriseService.homeserverAllowList()).isEmpty()
+        assertThat(defaultEnterpriseService.homeserverAllowList()).containsExactly("safechat.family")
     }
 
     @Test
-    fun `isAllowedToConnectToHomeserver is true for all homeserver urls`() = runTest {
+    fun `isAllowedToConnectToHomeserver accepts the account provider and its subdomains`() = runTest {
         val defaultEnterpriseService = DefaultEnterpriseService()
-        assertThat(defaultEnterpriseService.isAllowedToConnectToHomeserver(A_HOMESERVER_URL)).isTrue()
+        listOf(
+            "safechat.family",
+            "SafeChat.Family",
+            "https://safechat.family",
+            "https://safechat.family/",
+            "https://safechat.family:8448/",
+            "https://smith.safechat.family",
+        ).forEach {
+            assertThat(defaultEnterpriseService.isAllowedToConnectToHomeserver(it)).isTrue()
+        }
+    }
+
+    @Test
+    fun `isAllowedToConnectToHomeserver rejects any other homeserver`() = runTest {
+        val defaultEnterpriseService = DefaultEnterpriseService()
+        listOf(
+            A_HOMESERVER_URL,
+            "matrix.org",
+            "https://safechat.family.evil.example",
+            "https://evilsafechat.family",
+            "",
+        ).forEach {
+            assertThat(defaultEnterpriseService.isAllowedToConnectToHomeserver(it)).isFalse()
+        }
     }
 
     @Test

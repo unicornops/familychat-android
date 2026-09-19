@@ -11,12 +11,10 @@
 import com.android.build.api.variant.FilterConfiguration.FilterType.ABI
 import com.android.build.gradle.internal.tasks.factory.dependsOn
 import com.android.build.gradle.tasks.GenerateBuildConfig
-import com.google.firebase.appdistribution.gradle.firebaseAppDistribution
 import config.BuildTimeConfig
 import extension.AssetCopyTask
 import extension.GitBranchNameValueSource
 import extension.GitRevisionValueSource
-import extension.allEnterpriseImpl
 import extension.allFeaturesImpl
 import extension.allLibrariesImpl
 import extension.allServicesImpl
@@ -29,8 +27,6 @@ import java.util.Locale
 
 plugins {
     id("io.element.android-compose-application")
-    // When using precompiled plugins, we need to apply the firebase plugin like this
-    id(libs.plugins.firebaseAppDistribution.get().pluginId)
     id("kotlin-parcelize")
     alias(libs.plugins.licensee)
     alias(libs.plugins.kotlin.serialization)
@@ -88,19 +84,18 @@ android {
             storePassword = "android"
         }
         register("nightly") {
-            keyAlias = System.getenv("ELEMENT_ANDROID_NIGHTLY_KEYID")
-                ?: project.property("signing.element.nightly.keyId") as? String?
-            keyPassword = System.getenv("ELEMENT_ANDROID_NIGHTLY_KEYPASSWORD")
-                ?: project.property("signing.element.nightly.keyPassword") as? String?
+            keyAlias = System.getenv("FAMILYCHAT_ANDROID_NIGHTLY_KEYID")
+                ?: project.property("signing.familychat.nightly.keyId") as? String?
+            keyPassword = System.getenv("FAMILYCHAT_ANDROID_NIGHTLY_KEYPASSWORD")
+                ?: project.property("signing.familychat.nightly.keyPassword") as? String?
             storeFile = file("./signature/nightly.keystore")
-            storePassword = System.getenv("ELEMENT_ANDROID_NIGHTLY_STOREPASSWORD")
-                ?: project.property("signing.element.nightly.storePassword") as? String?
+            storePassword = System.getenv("FAMILYCHAT_ANDROID_NIGHTLY_STOREPASSWORD")
+                ?: project.property("signing.familychat.nightly.storePassword") as? String?
         }
     }
 
     val baseAppName = BuildTimeConfig.APPLICATION_NAME
-    val buildType = if (isEnterpriseBuild) "Enterprise" else "FOSS"
-    logger.warnInBox("Building ${defaultConfig.applicationId} ($baseAppName) [$buildType]")
+    logger.warnInBox("Building ${defaultConfig.applicationId} ($baseAppName)")
 
     buildTypes {
         val oAuthRedirectSchemeBase = BuildTimeConfig.METADATA_HOST_REVERSED ?: "io.element.android"
@@ -149,28 +144,8 @@ android {
             matchingFallbacks += listOf("release")
             signingConfig = signingConfigs.getByName("nightly")
 
-            firebaseAppDistribution {
-                artifactType = "APK"
-                // We upload the universal APK to fix this error:
-                // "App Distribution found more than 1 output file for this variant.
-                // Please contact firebase-support@google.com for help using APK splits with App Distribution."
-                artifactPath = "$rootDir/app/build/outputs/apk/gplay/nightly/app-gplay-universal-nightly.apk"
-                // artifactType = "AAB"
-                // artifactPath = "$rootDir/app/build/outputs/bundle/nightly/app-nightly.aab"
-                releaseNotesFile = "tools/release/ReleaseNotesNightly.md"
-                groups = if (isEnterpriseBuild) {
-                    "enterprise-testers"
-                } else {
-                    "external-testers"
-                }
-                // This should not be required, but if I do not add the appId, I get this error:
-                // "App Distribution halted because it had a problem uploading the APK: [404] Requested entity was not found."
-                appId = if (isEnterpriseBuild) {
-                    "1:912726360885:android:3f7e1fe644d99d5a00427c"
-                } else {
-                    "1:912726360885:android:e17435e0beb0303000427c"
-                }
-            }
+            // Upstream distributed nightlies through Element's Firebase App Distribution project.
+            // Family Chat has no Firebase project yet (unicornops/family-chat#234), so nothing is configured here.
         }
     }
 
@@ -267,13 +242,8 @@ setupDependencyInjection()
 dependencies {
     allLibrariesImpl()
     allServicesImpl()
-    if (isEnterpriseBuild) {
-        allEnterpriseImpl(project)
-        implementation(projects.appicon.enterprise)
-    } else {
-        implementation(projects.features.enterprise.implFoss)
-        implementation(projects.appicon.element)
-    }
+    implementation(projects.features.enterprise.implFoss)
+    implementation(projects.appicon.familychat)
     allFeaturesImpl(project)
     implementation(projects.features.migration.api)
     implementation(projects.appnav)

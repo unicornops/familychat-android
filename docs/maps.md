@@ -11,8 +11,15 @@
 
 ## Overview
 
-Element Android uses [MapTiler](https://www.maptiler.com/) to provide map
-imagery where required. MapTiler requires an API key, which we bake in to
+Location sharing is **disabled** in Family Chat: the target audience includes children, so the app
+asks for no location permission and no MapTiler API key is baked into any build
+([unicornops/family-chat#232](https://github.com/unicornops/family-chat/issues/232) decision 4).
+`SERVICES_MAPTILER_APIKEY` is empty in `plugins/src/main/kotlin/config/BuildTimeConfig.kt`.
+
+The rest of this page is upstream's documentation, kept for the day we decide otherwise.
+
+Upstream uses [MapTiler](https://www.maptiler.com/) to provide map
+imagery where required. MapTiler requires an API key, which is baked in to
 the app at release time.
 
 ## Local development with MapTiler

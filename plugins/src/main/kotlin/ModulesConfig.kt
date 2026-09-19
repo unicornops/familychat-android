@@ -16,11 +16,13 @@ object ModulesConfig {
         includeUnifiedPush = BuildTimeConfig.PUSH_CONFIG_INCLUDE_UNIFIED_PUSH,
     )
 
-    val analyticsConfig: AnalyticsConfig = if (isEnterpriseBuild) {
-        // Is Posthog configuration available?
+    val analyticsConfig: AnalyticsConfig = run {
+        // Family Chat ships no third-party analytics or crash reporting (unicornops/family-chat#232).
+        // Both values are empty in BuildTimeConfig, so the providers are left out of the build entirely
+        // and `:services:analytics:noop` is used instead. Upstream gated this on `isEnterpriseBuild`;
+        // the fork applies the same rule to every build.
         val withPosthog = BuildTimeConfig.SERVICES_POSTHOG_APIKEY.isNullOrEmpty().not() &&
             BuildTimeConfig.SERVICES_POSTHOG_HOST.isNullOrEmpty().not()
-        // Is Sentry configuration available?
         val withSentry = BuildTimeConfig.SERVICES_SENTRY_DSN.isNullOrEmpty().not()
         if (withPosthog || withSentry) {
             println("Analytics enabled with Posthog: $withPosthog, Sentry: $withSentry")
@@ -32,11 +34,5 @@ object ModulesConfig {
             println("Analytics disabled")
             AnalyticsConfig.Disabled
         }
-    } else {
-        println("Analytics enabled with Posthog and Sentry")
-        AnalyticsConfig.Enabled(
-            withPosthog = true,
-            withSentry = true,
-        )
     }
 }
