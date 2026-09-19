@@ -31,6 +31,6 @@ class DefaultLoginIntentResolver : LoginIntentResolver {
     companion object {
         /** Must be kept in sync with the app link intent filter in the application manifest. */
         private const val LINK_HOST = "safechat.family"
-        private const val LINK_PATH_PREFIX = "/app"
+        private const val LINK_PATH_PREFIX = "/app/"
     }
 }

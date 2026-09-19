@@ -97,7 +97,7 @@
                 <data android:scheme="https" />
                 <!-- Matching asset file: https://safechat.family/.well-known/assetlinks.json, published by unicornops/family-chat#236 -->
                 <data android:host="safechat.family" />
-                <data android:pathPrefix="/app" />
+                <data android:pathPrefix="/app/" />
             </intent-filter>
             <!--
               matrix: links
