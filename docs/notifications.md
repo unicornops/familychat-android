@@ -1,5 +1,18 @@
 This document aims to describe how Element android displays notifications to the end user. It also clarifies notifications and background settings in the app.
 
+> **Family Chat note.** The rest of this document is upstream's explanation of how Element X
+> Android handles notifications; the mechanics are unchanged in this fork. What differs:
+>
+> * Pushes go to **our own gateway** at `https://push.safechat.family/_matrix/push/v1/notify`
+>   (`FirebaseConfig.PUSHER_HTTP_URL` and `UnifiedPushConfig.DEFAULT_PUSH_GATEWAY_HTTP_URL`),
+>   never to matrix.org or Element's gateway. Hosting is tracked in
+>   [unicornops/family-chat#241](https://github.com/unicornops/family-chat/issues/241).
+> * The pusher app ids are `family.safechat.android[.debug|.nightly]`.
+> * **FCM is currently disabled** in both store flavours: there is no Firebase project for
+>   `family.safechat.android` yet, so `BuildTimeConfig.PUSH_CONFIG_INCLUDE_FIREBASE` is `false` and
+>   UnifiedPush is the only push provider. See the README for how to turn FCM back on.
+
+
 # Table of Contents
 
 <!--- TOC -->

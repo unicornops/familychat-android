@@ -16,11 +16,11 @@ policyUri: "https://element.io/privacy"
 
 
 Android:
-clientName = "Element",
-redirectUri = "io.element.android:/",
-clientUri = "https://element.io",
-tosUri = "https://element.io/user-terms-of-service",
-policyUri = "https://element.io/privacy"
+clientName = "Family Chat",
+redirectUri = "family.safechat:/",
+clientUri = "https://safechat.family",
+tosUri = "https://safechat.family/terms/",
+policyUri = "https://safechat.family/privacy/"
 
 
 Example of OAuthData (from presentUrl callback):

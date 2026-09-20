@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ PLACEHOLDER. Family Chat has no Firebase project yet (unicornops/family-chat#234).
+  ~ Element's credentials were removed from this fork; replace these values with the ones from
+  ~ the google-services.json of the Firebase Android app for `family.safechat.android`
+  ~ and set PUSH_CONFIG_INCLUDE_FIREBASE = true in plugins/src/main/kotlin/config/BuildTimeConfig.kt.
+  -->
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="google_app_id" translatable="false" tools:ignore="UnusedResources">1:912726360885:android:d097de99a4c23d2700427c</string>
+    <string name="google_app_id" translatable="false" tools:ignore="UnusedResources">1:000000000000:android:0000000000000000000000</string>
 </resources>

@@ -38,12 +38,11 @@ dependencyResolutionManagement {
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "ElementX"
+rootProject.name = "FamilyChat"
 include(":app")
 include(":appnav")
 include(":appconfig")
-include(":appicon:element")
-include(":appicon:enterprise")
+include(":appicon:familychat")
 include(":tests:detekt-rules")
 include(":tests:konsist")
 include(":tests:uitests")

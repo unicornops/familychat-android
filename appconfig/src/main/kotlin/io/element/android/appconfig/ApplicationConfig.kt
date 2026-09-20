@@ -20,16 +20,14 @@ object ApplicationConfig {
     const val APPLICATION_NAME: String = ""
 
     /**
-     * Used in the strings to reference the Element client.
+     * Used in the strings to reference the mobile client.
      * Cannot be empty.
-     * For Element, the value is "Element".
      */
-    const val PRODUCTION_APPLICATION_NAME: String = "Element"
+    const val PRODUCTION_APPLICATION_NAME: String = "Family Chat"
 
     /**
-     * Used in the strings to reference the Element Desktop client, for instance Element Web.
-     * Cannot be empty.
-     * For Element, the value is "Element". We use the same name for desktop and mobile for now.
+     * Used in the strings to reference the desktop/web client.
+     * Cannot be empty. We use the same name for desktop and mobile.
      */
-    const val DESKTOP_APPLICATION_NAME: String = "Element"
+    const val DESKTOP_APPLICATION_NAME: String = "Family Chat"
 }

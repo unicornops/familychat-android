@@ -37,6 +37,9 @@ fun AboutView(
                 content = {
                     Text(stringResource(id = elementLegal.titleRes))
                 },
+                supportingContent = elementLegal.subtitleRes?.let { subtitleRes ->
+                    { Text(stringResource(id = subtitleRes)) }
+                },
                 onClick = { onElementLegalClick(elementLegal) }
             )
         }

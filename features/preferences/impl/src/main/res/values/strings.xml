@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2026 unicornops
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only
+  ~ Please see LICENSE file in the repository root for full details.
+  -->
+<!-- Family Chat strings. These are not managed by Localazy. -->
+<resources>
+    <string name="screen_about_source_code_title">"Source code"</string>
+    <string name="screen_about_source_code_description">"Family Chat is a fork of Element X Android by Element (AGPL-3.0); source at https://github.com/unicornops/familychat-android"</string>
+</resources>

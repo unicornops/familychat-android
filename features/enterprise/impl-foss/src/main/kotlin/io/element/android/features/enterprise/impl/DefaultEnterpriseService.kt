@@ -23,8 +23,27 @@ import kotlinx.coroutines.flow.flowOf
 class DefaultEnterpriseService : EnterpriseService {
     override suspend fun isEnterpriseUser(sessionId: SessionId) = false
     override suspend fun tweakMasUrl(url: String, urlContentFetcher: ClientUrlContentFetcher) = url
-    override fun homeserverAllowList(): List<String> = emptyList()
-    override suspend fun isAllowedToConnectToHomeserver(homeserverUrl: String) = true
+
+    /**
+     * Family Chat is locked to its own account provider. A single entry also makes it the default
+     * account provider, which hides the server picker and the "create account" entry point.
+     */
+    override fun homeserverAllowList(): List<String> = listOf(ACCOUNT_PROVIDER)
+
+    /**
+     * Allows [ACCOUNT_PROVIDER] and every family subdomain of it. Custom domains brought by a
+     * family (BYOD) are not accepted yet, see unicornops/family-chat#234.
+     */
+    override suspend fun isAllowedToConnectToHomeserver(homeserverUrl: String): Boolean {
+        val host = homeserverUrl
+            .substringAfter("://")
+            .substringBefore('/')
+            .substringBefore(':')
+            .trim()
+            .lowercase()
+        return host == ACCOUNT_PROVIDER || host.endsWith(".$ACCOUNT_PROVIDER")
+    }
+
     override suspend fun isElementProEnforced(serverName: String): Boolean = false
 
     override suspend fun overrideBrandColor(sessionId: SessionId?, brandColor: String?) = Unit
@@ -45,4 +64,9 @@ class DefaultEnterpriseService : EnterpriseService {
     }
 
     override fun getNoisyNotificationChannelId(sessionId: SessionId): String? = null
+
+    companion object {
+        /** The only account provider Family Chat signs in to. */
+        const val ACCOUNT_PROVIDER = "safechat.family"
+    }
 }

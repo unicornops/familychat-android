@@ -1,4 +1,13 @@
-# Contributing to Element X Android
+# Contributing to Family Chat Android
+
+> **Family Chat note.** This is a fork of
+> [element-hq/element-x-android](https://github.com/element-hq/element-x-android). The default branch
+> is `familychat`, not `develop`, and pull requests go to `unicornops/familychat-android`. Changes
+> that are not Family Chat specific are better sent upstream so everyone benefits. Several of the
+> processes described below (Localazy translations, the Element X Android Gallery, danger, the
+> Element Matrix rooms) belong to upstream and do not apply here; the engineering rules (detekt,
+> ktlint, konsist, lint, Compose conventions, unit tests, accessibility) do.
+
 
 <!--- TOC -->
 

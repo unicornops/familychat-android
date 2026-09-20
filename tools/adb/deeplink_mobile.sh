@@ -7,7 +7,7 @@
 # Please see LICENSE files in the repository root for full details.
 
 # Format is:
-# https://mobile.element.io/element/?account_provider=example.org&login_hint=mxid:@alice:example.org
+# https://safechat.family/app/?account_provider=smith.safechat.family&login_hint=mxid:@alice:smith.safechat.family
 
 adb shell am start -a android.intent.action.VIEW \
-    -d "https://mobile.element.io/element/?account_provider=element.io\\&login_hint=mxid:@alice:element.io"
+    -d "https://safechat.family/app/?account_provider=smith.safechat.family\\&login_hint=mxid:@alice:smith.safechat.family"

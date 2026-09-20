@@ -9,6 +9,11 @@
 package io.element.android.appconfig
 
 object OnBoardingConfig {
-    /** Whether the user can create an account using the app. */
-    const val CAN_CREATE_ACCOUNT = true
+    /**
+     * Whether the user can create an account using the app.
+     *
+     * Family Chat accounts are created by a parent in the control panel, never in the app
+     * (unicornops/family-chat#234).
+     */
+    const val CAN_CREATE_ACCOUNT = false
 }

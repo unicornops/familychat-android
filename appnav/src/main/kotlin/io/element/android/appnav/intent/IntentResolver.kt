@@ -53,12 +53,12 @@ class IntentResolver(
             .takeIf { it.action == Intent.ACTION_VIEW }
             ?.dataString
 
-        // Mobile configuration link clicked? (mobile.element.io)
+        // Mobile configuration link clicked? (safechat.family app link)
         val mobileLoginData = actionViewData
             ?.let { loginIntentResolver.parse(it) }
         if (mobileLoginData != null) return ResolvedIntent.Login(mobileLoginData)
 
-        // External link clicked? (matrix.to, element.io, etc.)
+        // External link clicked? (matrix.to etc.)
         val permalinkData = actionViewData
             ?.let { permalinkParser.parse(it) }
             ?.takeIf { it !is PermalinkData.FallbackLink }

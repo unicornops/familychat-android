@@ -22,7 +22,7 @@ From root dir of the project
 
 ```shell
 maestro test \
-    -e MAESTRO_APP_ID=io.element.android.x.debug \
+    -e MAESTRO_APP_ID=family.safechat.android.debug \
     -e MAESTRO_USERNAME=user1 \
     -e MAESTRO_PASSWORD=123 \
     -e MAESTRO_RECOVERY_KEY=ABC \
@@ -53,7 +53,7 @@ Also, if updating the application code, do not forget to deploy again the applic
 ## CI
 
 The CI is running maestro using the workflow `.github/worflow/maestro.yaml` and [maestro cloud](https://cloud.mobile.dev/). For now we are limited to 100 runs a month.
-Some GitHub secrets are used to be able to do that: `MAESTRO_CLOUD_API_KEY`, for now api key from `benoitm@element.io` maestro cloud account, and `MATRIX_MAESTRO_ACCOUNT_PASSWORD` which is the password of the account `@maestroelement:matrix.org`. This account contains a room `MyRoom` to be able to run the maestro test suite.
+Maestro is not wired into Family Chat CI yet (unicornops/family-chat#234): the flows need a Family Chat test account on a staging family and a `MAESTRO_CLOUD_API_KEY`/`MATRIX_MAESTRO_ACCOUNT_PASSWORD` pair of our own. Until then the flows are run locally.
 
 ## iOS
 

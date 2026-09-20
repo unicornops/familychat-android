@@ -1,17 +1,20 @@
-# Analytics in Element
+# Analytics in Family Chat
 
 <!--- TOC -->
 
-* [Sentry](#sentry)
+* [There are none](#there-are-none)
 
 <!--- END -->
 
-## Sentry
+## There are none
 
-To make Sentry analytics and bug reporting work, you need to provide a Sentry DSN in the `local.properties` file, or set the `ELEMENT_ANDROID_SENTRY_DSN` environment variable.
+Family Chat ships **no** third-party analytics or crash reporting. Both PostHog and Sentry are
+excluded from the build: `SERVICES_POSTHOG_APIKEY`, `SERVICES_POSTHOG_HOST`, `SERVICES_SENTRY_DSN`
+and `SERVICES_SENTRY_DSN_RUST` are empty in `plugins/src/main/kotlin/config/BuildTimeConfig.kt`, so
+`ModulesConfig.analyticsConfig` resolves to `AnalyticsConfig.Disabled` and `:services:analytics:noop`
+is compiled in instead of `:services:analyticsproviders:posthog` and `:services:analyticsproviders:sentry`.
 
-The format used to add the DSN to your `local.properties` file is the following:
-
-```properties
-services.analyticsproviders.sentry.dsn=https://your-sentry-dsn/project-id
-```
+Upstream Element X sends analytics to Element's own PostHog and Sentry projects; those keys and DSNs
+are not present in this fork and must not be reintroduced. See
+[unicornops/family-chat#232](https://github.com/unicornops/family-chat/issues/232) decisions and the
+"no third-party processing of user content" stance.

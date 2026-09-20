@@ -18,13 +18,19 @@ import io.element.android.features.login.api.LoginParams
 class DefaultLoginIntentResolver : LoginIntentResolver {
     override fun parse(uriString: String): LoginParams? {
         val uri = uriString.toUri()
-        if (uri.host != "mobile.element.io") return null
-        if (uri.path.orEmpty().startsWith("/element").not()) return null
+        if (uri.host != LINK_HOST) return null
+        if (uri.path.orEmpty().startsWith(LINK_PATH_PREFIX).not()) return null
         val accountProvider = uri.getQueryParameter("account_provider") ?: return null
         val loginHint = uri.getQueryParameter("login_hint")
         return LoginParams(
             accountProvider = accountProvider,
             loginHint = loginHint,
         )
+    }
+
+    companion object {
+        /** Must be kept in sync with the app link intent filter in the application manifest. */
+        private const val LINK_HOST = "safechat.family"
+        private const val LINK_PATH_PREFIX = "/app/"
     }
 }
