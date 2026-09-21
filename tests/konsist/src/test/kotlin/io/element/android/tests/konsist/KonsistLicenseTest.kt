@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -16,9 +17,9 @@ import org.junit.Test
 class KonsistLicenseTest {
     private val publicLicense = """
         /\*
-        (?:.*\n)* \* Copyright \(c\) 20\d\d((, |-)20\d\d)? Element Creations Ltd\.
+        (?:.*\n)* \* Copyright (\(c\) )?20\d\d((, |-)20\d\d)? (Element Creations|Unicorn Operations) Ltd\.
         (?:.*\n)* \*
-         \* SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial\.
+         \* SPDX-License-Identifier: AGPL-3.0-only( OR LicenseRef-Element-Commercial)?\.
          \* Please see LICENSE files in the repository root for full details\.
          \*/
         """.trimIndent().toRegex()
@@ -54,7 +55,11 @@ class KonsistLicenseTest {
                     it.name.startsWith("Template ").not()
             }
             .assertTrue {
-                it.text.count("Element Creations Ltd.") == 1
+                // Upstream files carry Element's line, files added by the fork carry Unicorn Operations', files the
+                // fork modified carry both: each at most once, and at least one of them.
+                val element = it.text.count("Element Creations Ltd.")
+                val unicorn = it.text.count("Unicorn Operations Ltd.")
+                element <= 1 && unicorn <= 1 && element + unicorn >= 1
             }
     }
 }

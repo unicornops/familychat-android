@@ -1,7 +1,7 @@
 /*
  * Copyright 2026 Unicorn Operations Ltd.
  *
- * SPDX-License-Identifier: AGPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only.
  * Please see LICENSE files in the repository root for full details.
  */
 
@@ -9,7 +9,6 @@ package io.element.android.libraries.matrix.impl.auth
 
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
-import dev.zacsweers.metro.Inject
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.core.data.tryOrNull
 import io.element.android.libraries.matrix.api.auth.AuthenticationException
@@ -53,7 +52,6 @@ interface LoginTokenExchanger {
 }
 
 @ContributesBinding(AppScope::class)
-@Inject
 class DefaultLoginTokenExchanger(
     okHttpClient: OkHttpClient,
     private val coroutineDispatchers: CoroutineDispatchers,
