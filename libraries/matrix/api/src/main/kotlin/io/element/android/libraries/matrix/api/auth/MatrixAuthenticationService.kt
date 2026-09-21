@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -45,6 +46,17 @@ interface MatrixAuthenticationService {
      * @param password the account password.
      */
     suspend fun login(username: String, password: String): Result<SessionId>
+
+    /**
+     * Family Chat: signs in with a single-use `m.login.token` from a control panel sign-in code, against the
+     * homeserver the link named. Unlike [login] this needs no prior [setHomeserver] call. The token is redeemed
+     * exactly once by the server: a replay or an expired code fails with an [AuthenticationException.Generic]
+     * whose [errorCode] is [AuthErrorCode.FORBIDDEN].
+     *
+     * @param homeserverUrl the `https://<hs>` base URL answering the client-server API for the family.
+     * @param token the login token; never logged, never persisted.
+     */
+    suspend fun loginWithToken(homeserverUrl: String, token: String): Result<SessionId>
 
     /*
      * OAuth part.

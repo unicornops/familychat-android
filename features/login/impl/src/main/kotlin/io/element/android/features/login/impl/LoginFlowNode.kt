@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -37,6 +38,7 @@ import io.element.android.features.login.impl.screens.classic.ClassicFlowNode
 import io.element.android.features.login.impl.screens.confirmaccountprovider.ConfirmAccountProviderNode
 import io.element.android.features.login.impl.screens.loginpassword.LoginPasswordNode
 import io.element.android.features.login.impl.screens.onboarding.OnBoardingNode
+import io.element.android.features.login.impl.screens.tokenlogin.TokenLoginNode
 import io.element.android.features.preferences.api.PreferencesEntryPoint
 import io.element.android.libraries.androidutils.browser.openUrlInChromeCustomTab
 import io.element.android.libraries.architecture.BackstackView
@@ -67,7 +69,12 @@ class LoginFlowNode(
     private val preferencesEntryPoint: PreferencesEntryPoint,
 ) : BaseFlowNode<LoginFlowNode.NavTarget>(
     backstack = BackStack(
-        initialElement = NavTarget.CheckClassicFlow,
+        // A control panel sign-in code is redeemed first; everything else starts as upstream does.
+        initialElement = if (plugins.filterIsInstance<Params>().firstOrNull()?.hasSignInCode() == true) {
+            NavTarget.TokenLogin
+        } else {
+            NavTarget.CheckClassicFlow
+        },
         savedStateMap = buildContext.savedStateMap,
     ),
     buildContext = buildContext,
@@ -76,7 +83,11 @@ class LoginFlowNode(
     data class Params(
         val accountProvider: String?,
         val loginHint: String?,
-    ) : NodeInputs
+        val hs: String? = null,
+        val token: String? = null,
+    ) : NodeInputs {
+        fun hasSignInCode(): Boolean = !hs.isNullOrBlank() && !token.isNullOrBlank()
+    }
 
     private val callback: LoginEntryPoint.Callback = callback()
     private var activity: Activity? = null
@@ -107,6 +118,10 @@ class LoginFlowNode(
         @Parcelize
         data object CheckClassicFlow : NavTarget
 
+        /** Redeem the sign-in code from the link. The code itself lives in [Params], not in this parcelled target. */
+        @Parcelize
+        data object TokenLogin : NavTarget
+
         @Parcelize
         data class OnBoarding(
             val showBackButton: Boolean,
@@ -134,6 +149,21 @@ class LoginFlowNode(
 
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
         return when (navTarget) {
+            NavTarget.TokenLogin -> {
+                val params = inputs<Params>()
+                val callback = object : TokenLoginNode.Callback {
+                    override fun onTokenLoginFailed() {
+                        // Hand over to the regular flow, which pre-fills the account provider and login hint
+                        // from the same link, so the user only has to type their password.
+                        backstack.replace(NavTarget.CheckClassicFlow)
+                    }
+                }
+                val inputs = TokenLoginNode.Inputs(
+                    hs = params.hs.orEmpty(),
+                    token = params.token.orEmpty(),
+                )
+                createNode<TokenLoginNode>(buildContext, plugins = listOf(inputs, callback))
+            }
             NavTarget.CheckClassicFlow -> {
                 val callback = object : ClassicFlowNode.Callback {
                     override fun navigateToOnBoarding(allowBackNavigation: Boolean) {

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright 2026 Unicorn Operations Ltd.
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only
+  ~ Please see LICENSE files in the repository root for full details.
+  -->
+<!-- Family Chat strings. Never edit localazy.xml; Localazy sync is disabled for this fork, so these stay here. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="screen_token_login_title">"Signing you in"</string>
+    <string name="screen_token_login_subtitle">"Using the sign-in code from your family's control panel on %1$s."</string>
+    <string name="screen_token_login_error_title">"This sign-in code cannot be used"</string>
+    <string name="screen_token_login_error_code_rejected">"That sign-in code has already been used or has expired. Ask a parent for a new code from the control panel, or sign in with your password."</string>
+    <string name="screen_token_login_error_generic">"Your family's server could not be reached with this sign-in code. Check your connection and try a new code, or sign in with your password."</string>
+</resources>

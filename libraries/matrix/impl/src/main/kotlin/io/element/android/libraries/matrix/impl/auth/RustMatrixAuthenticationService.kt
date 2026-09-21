@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -57,6 +58,8 @@ import org.matrix.rustcomponents.sdk.QrCodeDecodeException
 import org.matrix.rustcomponents.sdk.QrLoginProgress
 import org.matrix.rustcomponents.sdk.QrLoginProgressListener
 import org.matrix.rustcomponents.sdk.SecretsBundleWithUserId
+import org.matrix.rustcomponents.sdk.Session
+import org.matrix.rustcomponents.sdk.SlidingSyncVersion
 import timber.log.Timber
 import uniffi.matrix_sdk.OAuthAuthorizationData
 import kotlin.time.Duration.Companion.seconds
@@ -73,6 +76,7 @@ class RustMatrixAuthenticationService(
     private val enterpriseService: EnterpriseService,
     private val featureFlagService: FeatureFlagService,
     private val clientEnterpriseHook: ClientEnterpriseHook,
+    private val loginTokenExchanger: LoginTokenExchanger,
 ) : MatrixAuthenticationService {
     // Any existing Element Classic session that we want to try to import secrets from during login.
     private var elementClassicSession: ElementClassicSession? = null
@@ -152,7 +156,7 @@ class RustMatrixAuthenticationService(
                 client.login(
                     username = username,
                     password = password,
-                    initialDeviceName = "Element X Android",
+                    initialDeviceName = INITIAL_DEVICE_NAME,
                     deviceId = null,
                 )
                 // Ensure that the user is not already logged in with the same account
@@ -179,6 +183,64 @@ class RustMatrixAuthenticationService(
                 SessionId(sessionData.userId)
             }.mapFailure { failure ->
                 Timber.e(failure, "Failed to login")
+                failure.mapAuthenticationException()
+            }
+        }
+
+    override suspend fun loginWithToken(homeserverUrl: String, token: String): Result<SessionId> =
+        withContext(coroutineDispatchers.io) {
+            val emptySessionPath = rotateSessionPath()
+            runCatchingExceptions {
+                val client = makeClient(sessionPaths = emptySessionPath) {
+                    homeserverUrl(homeserverUrl)
+                }
+                currentClient = client
+                // The SDK has no `m.login.token` entry point; redeem the code ourselves and hand the
+                // credentials over as a restored session, exactly as a stored session is reopened.
+                val credentials = loginTokenExchanger.exchange(
+                    homeserverUrl = homeserverUrl,
+                    token = token,
+                    initialDeviceDisplayName = INITIAL_DEVICE_NAME,
+                )
+                client.restoreSession(
+                    Session(
+                        accessToken = credentials.accessToken,
+                        refreshToken = credentials.refreshToken,
+                        userId = credentials.userId,
+                        deviceId = credentials.deviceId,
+                        homeserverUrl = homeserverUrl,
+                        oauthData = null,
+                        // The client was built with DISCOVER_NATIVE; the family homeservers all serve native sliding sync.
+                        slidingSyncVersion = SlidingSyncVersion.NATIVE,
+                    )
+                )
+                // Ensure that the user is not already logged in with the same account
+                ensureNotAlreadyLoggedIn(client)
+                val sessionData = client.session()
+                    .toSessionData(
+                        isTokenValid = true,
+                        loginType = LoginType.DIRECT,
+                        passphrase = pendingKey.formattedAsString(),
+                        sessionPaths = emptySessionPath,
+                        homeserverUrl = homeserverUrl,
+                    )
+                val matrixClient = rustMatrixClientFactory.create(client, sessionData, isMessageSearchAvailable())
+
+                // Apply enterprise hooks to the newly created client as soon as possible
+                clientEnterpriseHook(matrixClient)
+
+                newMatrixClientObservers.forEach { it.invoke(matrixClient) }
+                sessionStore.addSession(sessionData)
+
+                // Clean up the strong reference held here since it's no longer necessary
+                clear(destroyClient = false)
+
+                SessionId(sessionData.userId)
+            }.onFailure {
+                clear(destroyClient = true)
+            }.mapFailure { failure ->
+                // The failure never carries the token; the exchanger only reports HTTP status and errcode.
+                Timber.e(failure, "Failed to login with a sign-in code")
                 failure.mapAuthenticationException()
             }
         }
@@ -465,5 +527,9 @@ class RustMatrixAuthenticationService(
             val status = sessionVerificationService.sessionVerifiedStatus.first { it != SessionVerifiedStatus.Unknown }
             Timber.d("Finished waiting for a known verification status: $status")
         } ?: Timber.w("Timed out waiting for a known verification status")
+    }
+
+    companion object {
+        private const val INITIAL_DEVICE_NAME = "Family Chat Android"
     }
 }

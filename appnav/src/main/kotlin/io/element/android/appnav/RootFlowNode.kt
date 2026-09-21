@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -409,7 +410,16 @@ class RootFlowNode(
         }
     }
 
-    private suspend fun onLoginLink(params: LoginParams) {
+    private suspend fun onLoginLink(rawParams: LoginParams) {
+        // A sign-in code is only redeemed against a homeserver we are allowed to connect to; otherwise the
+        // link degrades to the plain account provider + login hint prefill and the token goes nowhere.
+        val hs = rawParams.hs
+        val params = if (hs != null && !accountProviderAccessControl.isAllowedToConnectToAccountProvider(hs.ensureProtocol())) {
+            Timber.w("Login link: sign-in code ignored, we are not allowed to connect to its homeserver")
+            rawParams.copy(hs = null, token = null)
+        } else {
+            rawParams
+        }
         if (accountProviderAccessControl.isAllowedToConnectToAccountProvider(params.accountProvider.ensureProtocol())) {
             // Is there a session already?
             val sessions = sessionStore.getAllSessions()

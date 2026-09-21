@@ -22,7 +22,18 @@ release signing certificate. It is published by [unicornops/family-chat#236](htt
 ### Supported links
 
 App link handed to a device by the control panel, which selects the account provider and pre-fills the user id:
-> https://safechat.family/app/?account_provider=smith.safechat.family&login_hint=mxid:@alice:smith.safechat.family
+> https://safechat.family/app/login?account_provider=smith.safechat.family&login_hint=mxid:@alice:smith.safechat.family
+
+The same link with a parent-minted **sign-in code** (Palpo families only; contract in
+[`docs/client-login-links.md`](https://github.com/unicornops/family-chat/blob/main/docs/client-login-links.md)):
+> https://safechat.family/app/login?account_provider=smith.safechat.family&login_hint=mxid:@alice:smith.safechat.family&hs=smith.safechat.family&token=…
+
+`hs` is the bare host (optionally `:port`) that answers the client-server API; the app redeems `token` with
+`m.login.token` against `https://<hs>` (`TokenLoginNode`, `MatrixAuthenticationService.loginWithToken`) and goes
+straight into the app. A malformed `hs`, a host outside the account-provider allowlist, or a `token` without `hs`
+degrades the link to the prefill form above. A used or expired code (the server answers 403) shows an explanation and
+falls back to the password form for the same server. The token is never logged (`LoginParams.toString()` redacts it)
+and never written to a saved-state bundle.
 
 Link to a user:
 > https://matrix.to/#/@alice:smith.safechat.family

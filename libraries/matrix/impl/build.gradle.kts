@@ -37,6 +37,8 @@ dependencies {
     implementation(projects.libraries.di)
     implementation(projects.libraries.featureflag.api)
     implementation(projects.libraries.network)
+    implementation(platform(libs.network.okhttp.bom))
+    implementation(libs.network.okhttp.okhttp)
     implementation(projects.libraries.preferences.api)
     implementation(projects.libraries.sessionStorage.api)
     implementation(projects.libraries.workmanager.api)
@@ -50,6 +52,8 @@ dependencies {
     implementation(libs.kotlinx.collections.immutable)
 
     testCommonDependencies(libs)
+    testImplementation(platform(libs.network.okhttp.bom))
+    testImplementation(libs.network.mockwebserver)
     testImplementation(projects.features.enterprise.test)
     testImplementation(projects.libraries.featureflag.test)
     testImplementation(projects.libraries.matrix.test)
