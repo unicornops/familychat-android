@@ -28,12 +28,16 @@ The same link with a parent-minted **sign-in code** (Palpo families only; contra
 [`docs/client-login-links.md`](https://github.com/unicornops/family-chat/blob/main/docs/client-login-links.md)):
 > https://safechat.family/app/login?account_provider=smith.safechat.family&login_hint=mxid:@alice:smith.safechat.family&hs=smith.safechat.family&token=…
 
-`hs` is the bare host (optionally `:port`) that answers the client-server API; the app redeems `token` with
+`hs` is the bare host (optionally `:port`) that answers the client-server API. The app first asks the user to confirm
+the account ("Sign in as @alice:…?", or the host when there is no `login_hint`), then redeems `token` with
 `m.login.token` against `https://<hs>` (`TokenLoginNode`, `MatrixAuthenticationService.loginWithToken`) and goes
-straight into the app. A malformed `hs`, a host outside the account-provider allowlist, or a `token` without `hs`
-degrades the link to the prefill form above. A used or expired code (the server answers 403) shows an explanation and
-falls back to the password form for the same server. The token is never logged (`LoginParams.toString()` redacts it)
-and never written to a saved-state bundle.
+straight into the app. A code that signs into another account than `login_hint` names is refused and its new device
+signed out again. A malformed `hs`, a host outside the account-provider allowlist, or a `token` without `hs`
+degrades the link to the prefill form above (the token is dropped, never redeemed). Declining, or a used or expired
+code (the server answers 401/403), falls back to the password form for `hs`, with the user id pre-filled. The token is
+never logged and never written to a saved-state bundle: the parcelled `LoginParams` only carry an id naming it in the
+in-memory `SignInCodeStore`, so after a process death the link falls back to the password form. While an account is
+signed in, a login link only shows "You're already signed in", and its code is not redeemed.
 
 Link to a user:
 > https://matrix.to/#/@alice:smith.safechat.family

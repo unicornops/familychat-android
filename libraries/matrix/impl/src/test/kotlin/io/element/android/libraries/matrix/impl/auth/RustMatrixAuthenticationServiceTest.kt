@@ -13,9 +13,7 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.features.enterprise.test.FakeEnterpriseService
 import io.element.android.libraries.featureflag.test.FakeFeatureFlagService
-import io.element.android.libraries.matrix.api.auth.AuthErrorCode
-import io.element.android.libraries.matrix.api.auth.AuthenticationException
-import io.element.android.libraries.matrix.api.auth.errorCode
+import io.element.android.libraries.matrix.api.auth.SignInCodeException
 import io.element.android.libraries.matrix.impl.ClientBuilderProvider
 import io.element.android.libraries.matrix.impl.FakeClientBuilderProvider
 import io.element.android.libraries.matrix.impl.createRustMatrixClientFactory
@@ -37,6 +35,10 @@ import io.element.android.tests.testutils.lambda.lambdaError
 import io.element.android.tests.testutils.lambda.lambdaRecorder
 import io.element.android.tests.testutils.lambda.value
 import io.element.android.tests.testutils.testCoroutineDispatchers
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -89,30 +91,19 @@ class RustMatrixAuthenticationServiceTest {
     @Test
     fun `loginWithToken redeems the code against the given homeserver and stores the session`() = runTest {
         val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> })
-        val exchangeResult = lambdaRecorder<String, String, String, LoginTokenCredentials> { _, _, _ ->
-            LoginTokenCredentials(
-                userId = A_USER_ID.value,
-                accessToken = "syt_access",
-                deviceId = A_DEVICE_ID.value,
-                refreshToken = null,
-            )
-        }
+        val exchangeResult = lambdaRecorder<String, String, String, LoginTokenCredentials> { _, _, _ -> aLoginTokenCredentials() }
+        val logoutResult = lambdaRecorder<String, String, Unit> { _, _ -> }
         val sut = createRustMatrixAuthenticationService(
             sessionStore = sessionStore,
-            clientBuilderProvider = FakeClientBuilderProvider(
-                provideResult = {
-                    FakeFfiClientBuilder(
-                        buildResult = { FakeFfiClient(withUtdHook = {}) }
-                    )
-                }
-            ),
-            loginTokenExchanger = FakeLoginTokenExchanger(exchangeResult),
+            clientBuilderProvider = aClientBuilderProvider(),
+            loginTokenExchanger = FakeLoginTokenExchanger(exchangeResult, logoutResult),
         )
 
-        val result = sut.loginWithToken(homeserverUrl = "https://smith.safechat.family", token = "syl_token")
+        val result = sut.loginWithToken(homeserverUrl = "https://smith.safechat.family", token = "syl_token", expectedUserId = A_USER_ID.value)
 
         assertThat(result.getOrNull()).isEqualTo(A_SESSION_ID)
         exchangeResult.assertions().isCalledOnce().with(value("https://smith.safechat.family"), value("syl_token"), any())
+        logoutResult.assertions().isNeverCalled()
         val stored = sessionStore.getSession(A_USER_ID.value)
         assertThat(stored).isNotNull()
         assertThat(stored!!.loginType).isEqualTo(LoginType.DIRECT)
@@ -123,27 +114,81 @@ class RustMatrixAuthenticationServiceTest {
     @Test
     fun `loginWithToken reports a refused code and tears the temporary client down`() = runTest {
         val closeResult = lambdaRecorder<Unit> {}
+        val logoutResult = lambdaRecorder<String, String, Unit> { _, _ -> }
         val sessionStore = InMemorySessionStore()
         val sut = createRustMatrixAuthenticationService(
             sessionStore = sessionStore,
-            clientBuilderProvider = FakeClientBuilderProvider(
-                provideResult = {
-                    FakeFfiClientBuilder(
-                        buildResult = { FakeFfiClient(withUtdHook = {}, closeResult = closeResult) }
-                    )
-                }
+            clientBuilderProvider = aClientBuilderProvider(closeResult),
+            loginTokenExchanger = FakeLoginTokenExchanger(
+                exchangeResult = { _, _, _ -> throw SignInCodeException.Rejected(httpStatus = 403, errcode = "M_FORBIDDEN") },
+                logoutResult = logoutResult,
             ),
-            loginTokenExchanger = FakeLoginTokenExchanger { _, _, _ ->
-                throw AuthenticationException.Generic("M_FORBIDDEN: Invalid login token")
+        )
+
+        val result = sut.loginWithToken(homeserverUrl = "https://smith.safechat.family", token = "syl_token", expectedUserId = null)
+
+        assertThat(result.exceptionOrNull()).isInstanceOf(SignInCodeException.Rejected::class.java)
+        assertThat(sessionStore.getAllSessions()).isEmpty()
+        closeResult.assertions().isCalledOnce()
+        // No device was created, so there is nothing to sign out
+        logoutResult.assertions().isNeverCalled()
+    }
+
+    @Test
+    fun `loginWithToken refuses a code for another account than the link named, and signs the new device out`() = runTest {
+        val closeResult = lambdaRecorder<Unit> {}
+        val logoutResult = lambdaRecorder<String, String, Unit> { _, _ -> }
+        val sessionStore = InMemorySessionStore()
+        val sut = createRustMatrixAuthenticationService(
+            sessionStore = sessionStore,
+            clientBuilderProvider = aClientBuilderProvider(closeResult),
+            loginTokenExchanger = FakeLoginTokenExchanger(
+                exchangeResult = { _, _, _ -> aLoginTokenCredentials() },
+                logoutResult = logoutResult,
+            ),
+        )
+
+        val result = sut.loginWithToken(
+            homeserverUrl = "https://smith.safechat.family",
+            token = "syl_token",
+            expectedUserId = "@someone_else:smith.safechat.family",
+        )
+
+        assertThat(result.exceptionOrNull()).isInstanceOf(SignInCodeException.UserMismatch::class.java)
+        assertThat(sessionStore.getAllSessions()).isEmpty()
+        closeResult.assertions().isCalledOnce()
+        logoutResult.assertions().isCalledOnce().with(value("https://smith.safechat.family"), value("syt_access"))
+    }
+
+    @Test
+    fun `loginWithToken completes even when the caller is cancelled`() = runTest {
+        val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> })
+        val exchangeStarted = CompletableDeferred<Unit>()
+        val releaseExchange = CompletableDeferred<Unit>()
+        val sut = createRustMatrixAuthenticationService(
+            sessionStore = sessionStore,
+            clientBuilderProvider = aClientBuilderProvider(),
+            loginTokenExchanger = object : LoginTokenExchanger {
+                override suspend fun exchange(homeserverUrl: String, token: String, initialDeviceDisplayName: String): LoginTokenCredentials {
+                    exchangeStarted.complete(Unit)
+                    releaseExchange.await()
+                    return aLoginTokenCredentials()
+                }
+
+                override suspend fun logout(homeserverUrl: String, accessToken: String) = lambdaError()
             },
         )
 
-        val result = sut.loginWithToken(homeserverUrl = "https://smith.safechat.family", token = "syl_token")
+        val caller = launch {
+            sut.loginWithToken(homeserverUrl = "https://smith.safechat.family", token = "syl_token", expectedUserId = null)
+        }
+        exchangeStarted.await()
+        caller.cancelAndJoin()
+        releaseExchange.complete(Unit)
 
-        assertThat(result.isFailure).isTrue()
-        assertThat((result.exceptionOrNull() as AuthenticationException).errorCode).isEqualTo(AuthErrorCode.FORBIDDEN)
-        assertThat(sessionStore.getAllSessions()).isEmpty()
-        closeResult.assertions().isCalledOnce()
+        // The server consumed the code: the session it issued is kept, not orphaned
+        val sessions = sessionStore.sessionsFlow().first { it.isNotEmpty() }
+        assertThat(sessions.single().userId).isEqualTo(A_USER_ID.value)
     }
 
     private fun TestScope.createRustMatrixAuthenticationService(
@@ -175,14 +220,35 @@ class RustMatrixAuthenticationServiceTest {
             featureFlagService = FakeFeatureFlagService(),
             clientEnterpriseHook = {},
             loginTokenExchanger = loginTokenExchanger,
+            appCoroutineScope = backgroundScope,
         )
     }
 }
 
+private fun aLoginTokenCredentials() = LoginTokenCredentials(
+    userId = A_USER_ID.value,
+    accessToken = "syt_access",
+    deviceId = A_DEVICE_ID.value,
+    refreshToken = null,
+)
+
+private fun aClientBuilderProvider(closeResult: () -> Unit = {}) = FakeClientBuilderProvider(
+    provideResult = {
+        FakeFfiClientBuilder(
+            buildResult = { FakeFfiClient(withUtdHook = {}, closeResult = closeResult) }
+        )
+    }
+)
+
 private class FakeLoginTokenExchanger(
     private val exchangeResult: (String, String, String) -> LoginTokenCredentials = { _, _, _ -> lambdaError() },
+    private val logoutResult: (String, String) -> Unit = { _, _ -> lambdaError() },
 ) : LoginTokenExchanger {
     override suspend fun exchange(homeserverUrl: String, token: String, initialDeviceDisplayName: String): LoginTokenCredentials {
         return exchangeResult(homeserverUrl, token, initialDeviceDisplayName)
+    }
+
+    override suspend fun logout(homeserverUrl: String, accessToken: String) {
+        logoutResult(homeserverUrl, accessToken)
     }
 }

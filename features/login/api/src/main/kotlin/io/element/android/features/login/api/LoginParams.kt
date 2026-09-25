@@ -16,18 +16,15 @@ import kotlinx.parcelize.Parcelize
  * Parameters to start the login flow, when the application is opened
  * from a safechat.family app link (`docs/client-login-links.md` in unicornops/family-chat).
  *
- * [hs] and [token] come from a control panel sign-in code: the token is a single-use, short-lived
- * `m.login.token` to redeem against `https://<hs>`. They are always both present or both absent.
+ * [hs] and [signInCodeId] come from a control panel sign-in code, a single-use, short-lived `m.login.token` to
+ * redeem against `https://<hs>`. They are always both present or both absent. This class is parcelled into the
+ * navigation state, so it never carries the token itself: [signInCodeId] only names it in the login feature's
+ * in-memory store, and does not resolve any more once the process is gone.
  */
 @Parcelize
 data class LoginParams(
     val accountProvider: String,
     val loginHint: String?,
     val hs: String? = null,
-    val token: String? = null,
-) : Parcelable {
-    /** The token is a bearer credential: it must never reach a log line. */
-    override fun toString(): String {
-        return "LoginParams(accountProvider=$accountProvider, loginHint=$loginHint, hs=$hs, token=${if (token == null) "null" else "<redacted>"})"
-    }
-}
+    val signInCodeId: String? = null,
+) : Parcelable

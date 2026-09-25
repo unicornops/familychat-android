@@ -39,6 +39,7 @@ import io.element.android.features.login.impl.screens.confirmaccountprovider.Con
 import io.element.android.features.login.impl.screens.loginpassword.LoginPasswordNode
 import io.element.android.features.login.impl.screens.onboarding.OnBoardingNode
 import io.element.android.features.login.impl.screens.tokenlogin.TokenLoginNode
+import io.element.android.features.login.impl.tokenlogin.SignInCodeStore
 import io.element.android.features.preferences.api.PreferencesEntryPoint
 import io.element.android.libraries.androidutils.browser.openUrlInChromeCustomTab
 import io.element.android.libraries.architecture.BackstackView
@@ -49,6 +50,7 @@ import io.element.android.libraries.architecture.createNode
 import io.element.android.libraries.architecture.inputs
 import io.element.android.libraries.di.annotations.AppCoroutineScope
 import io.element.android.libraries.matrix.api.auth.OAuthDetails
+import io.element.android.libraries.matrix.api.core.MatrixPatterns
 import io.element.android.libraries.oauth.api.OAuthAction
 import io.element.android.libraries.oauth.api.OAuthActionFlow
 import kotlinx.coroutines.CoroutineScope
@@ -67,10 +69,11 @@ class LoginFlowNode(
     private val appCoroutineScope: CoroutineScope,
     private val elementClassicConnection: ElementClassicConnection,
     private val preferencesEntryPoint: PreferencesEntryPoint,
+    private val signInCodeStore: SignInCodeStore,
 ) : BaseFlowNode<LoginFlowNode.NavTarget>(
     backstack = BackStack(
         // A control panel sign-in code is redeemed first; everything else starts as upstream does.
-        initialElement = if (plugins.filterIsInstance<Params>().firstOrNull()?.hasSignInCode() == true) {
+        initialElement = if (plugins.filterIsInstance<Params>().firstOrNull()?.hasSignInCode(signInCodeStore) == true) {
             NavTarget.TokenLogin
         } else {
             NavTarget.CheckClassicFlow
@@ -83,10 +86,12 @@ class LoginFlowNode(
     data class Params(
         val accountProvider: String?,
         val loginHint: String?,
+        /** The host a sign-in code is redeemed against, and the server the password fallback then uses. */
         val hs: String? = null,
-        val token: String? = null,
+        /** Names the sign-in code in [SignInCodeStore]; the token itself is never part of the node inputs. */
+        val signInCodeId: String? = null,
     ) : NodeInputs {
-        fun hasSignInCode(): Boolean = !hs.isNullOrBlank() && !token.isNullOrBlank()
+        fun hasSignInCode(signInCodeStore: SignInCodeStore): Boolean = !hs.isNullOrBlank() && signInCodeStore.contains(signInCodeId)
     }
 
     private val callback: LoginEntryPoint.Callback = callback()
@@ -118,7 +123,11 @@ class LoginFlowNode(
         @Parcelize
         data object CheckClassicFlow : NavTarget
 
-        /** Redeem the sign-in code from the link. The code itself lives in [Params], not in this parcelled target. */
+        /**
+         * Redeem the sign-in code from the link. Neither this parcelled target nor [Params] hold the code: it is in
+         * [SignInCodeStore], in memory only, so a target restored after a process death finds no code and falls
+         * back to [CheckClassicFlow].
+         */
         @Parcelize
         data object TokenLogin : NavTarget
 
@@ -151,16 +160,22 @@ class LoginFlowNode(
         return when (navTarget) {
             NavTarget.TokenLogin -> {
                 val params = inputs<Params>()
+                val hs = params.hs
+                if (hs.isNullOrBlank() || !params.hasSignInCode(signInCodeStore)) {
+                    // No code any more (the process was recreated, or it expired): this is the plain password flow.
+                    return resolve(NavTarget.CheckClassicFlow, buildContext)
+                }
                 val callback = object : TokenLoginNode.Callback {
-                    override fun onTokenLoginFailed() {
-                        // Hand over to the regular flow, which pre-fills the account provider and login hint
+                    override fun onContinueWithPassword() {
+                        // Hand over to the regular flow, which pre-fills the family's server and the login hint
                         // from the same link, so the user only has to type their password.
                         backstack.replace(NavTarget.CheckClassicFlow)
                     }
                 }
                 val inputs = TokenLoginNode.Inputs(
-                    hs = params.hs.orEmpty(),
-                    token = params.token.orEmpty(),
+                    hs = hs,
+                    loginHint = params.loginHint,
+                    signInCodeId = params.signInCodeId.orEmpty(),
                 )
                 createNode<TokenLoginNode>(buildContext, plugins = listOf(inputs, callback))
             }
@@ -219,7 +234,7 @@ class LoginFlowNode(
                     }
 
                     override fun navigateToLoginPassword() {
-                        backstack.push(NavTarget.LoginPassword())
+                        backstack.push(NavTarget.LoginPassword(initialLogin = linkUserId().orEmpty()))
                     }
 
                     override fun onDone() {
@@ -232,7 +247,9 @@ class LoginFlowNode(
                 }
                 val params = inputs<Params>()
                 val inputs = OnBoardingNode.Params(
-                    accountProvider = params.accountProvider,
+                    // After a sign-in code, the password fallback goes to the host the code was for: for a family
+                    // with its own domain, `account_provider` only serves the well-known documents.
+                    accountProvider = params.hs ?: params.accountProvider,
                     loginHint = params.loginHint,
                     showBackButton = navTarget.showBackButton,
                 )
@@ -293,6 +310,11 @@ class LoginFlowNode(
             }
         }
     }
+
+    /** The Matrix ID named by the link's `login_hint`, used to pre-fill the password form. */
+    private fun linkUserId(): String? = inputs<Params>().loginHint
+        ?.removePrefix("mxid:")
+        ?.takeIf { MatrixPatterns.isUserId(it) }
 
     private fun navigateToMas(oAuthDetails: OAuthDetails) {
         activity?.let {

@@ -14,7 +14,11 @@ import android.os.Parcelable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.lifecycleScope
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.navigation.NavElements
@@ -55,6 +59,7 @@ import io.element.android.libraries.architecture.createNode
 import io.element.android.libraries.architecture.waitForChildAttached
 import io.element.android.libraries.core.uri.ensureProtocol
 import io.element.android.libraries.deeplink.api.DeeplinkData
+import io.element.android.libraries.designsystem.components.dialogs.AlertDialog
 import io.element.android.libraries.di.annotations.AppCoroutineScope
 import io.element.android.libraries.featureflag.api.FeatureFlagService
 import io.element.android.libraries.featureflag.api.FeatureFlags
@@ -116,6 +121,9 @@ class RootFlowNode(
      * login params, whatever the order in which the intent and the first nav state emission are processed.
      */
     private var pendingLoginParams: LoginParams? = null
+
+    /** Family Chat: a login link was opened while an account is already signed in, and there can only be one. */
+    private var showAlreadySignedInDialog by mutableStateOf(false)
 
     override fun onBuilt() {
         analyticsColdStartWatcher.start()
@@ -270,6 +278,12 @@ class RootFlowNode(
             }
             BackstackView(transitionHandler = transitionHandler)
             announcementService.Render(Modifier)
+            if (showAlreadySignedInDialog) {
+                AlertDialog(
+                    content = stringResource(R.string.login_link_already_signed_in),
+                    onDismiss = { showAlreadySignedInDialog = false },
+                )
+            }
         }
     }
 
@@ -414,9 +428,9 @@ class RootFlowNode(
         // A sign-in code is only redeemed against a homeserver we are allowed to connect to; otherwise the
         // link degrades to the plain account provider + login hint prefill and the token goes nowhere.
         val hs = rawParams.hs
-        val params = if (hs != null && !accountProviderAccessControl.isAllowedToConnectToAccountProvider(hs.ensureProtocol())) {
+        val params = if (hs != null && !accountProviderAccessControl.isAllowedToConnectToAccountProvider("https://$hs")) {
             Timber.w("Login link: sign-in code ignored, we are not allowed to connect to its homeserver")
-            rawParams.copy(hs = null, token = null)
+            rawParams.copy(hs = null, signInCodeId = null)
         } else {
             rawParams
         }
@@ -436,7 +450,10 @@ class RootFlowNode(
                         backstack.push(NavTarget.NotLoggedInFlow(params))
                     }
                 } else {
+                    // Tell the user rather than ignoring the link silently. A sign-in code is not redeemed: that
+                    // would burn it for nothing, as the app cannot hold a second account.
                     Timber.w("Login link ignored, multi account is disabled")
+                    showAlreadySignedInDialog = true
                 }
             } else {
                 pendingLoginParams = params

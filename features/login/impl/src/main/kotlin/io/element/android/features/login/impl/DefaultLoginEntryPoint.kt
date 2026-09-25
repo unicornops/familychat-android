@@ -31,7 +31,7 @@ class DefaultLoginEntryPoint : LoginEntryPoint {
                     accountProvider = params.accountProvider,
                     loginHint = params.loginHint,
                     hs = params.hs,
-                    token = params.token,
+                    signInCodeId = params.signInCodeId,
                 ),
                 callback,
             )

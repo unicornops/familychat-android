@@ -18,6 +18,7 @@ import io.element.android.libraries.androidutils.crypto.ClientSecret
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.core.extensions.mapFailure
 import io.element.android.libraries.core.extensions.runCatchingExceptions
+import io.element.android.libraries.di.annotations.AppCoroutineScope
 import io.element.android.libraries.featureflag.api.FeatureFlagService
 import io.element.android.libraries.featureflag.api.FeatureFlags
 import io.element.android.libraries.matrix.api.MatrixClient
@@ -28,6 +29,7 @@ import io.element.android.libraries.matrix.api.auth.MatrixHomeServerDetails
 import io.element.android.libraries.matrix.api.auth.OAuthDetails
 import io.element.android.libraries.matrix.api.auth.OAuthPrompt
 import io.element.android.libraries.matrix.api.auth.SessionRestorationException
+import io.element.android.libraries.matrix.api.auth.SignInCodeException
 import io.element.android.libraries.matrix.api.auth.qrlogin.MatrixQrCodeLoginData
 import io.element.android.libraries.matrix.api.auth.qrlogin.QrCodeLoginStep
 import io.element.android.libraries.matrix.api.core.SessionId
@@ -47,7 +49,12 @@ import io.element.android.libraries.matrix.impl.paths.SessionPathsFactory
 import io.element.android.libraries.sessionstorage.api.LoginType
 import io.element.android.libraries.sessionstorage.api.SessionStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.matrix.rustcomponents.sdk.Client
@@ -77,7 +84,11 @@ class RustMatrixAuthenticationService(
     private val featureFlagService: FeatureFlagService,
     private val clientEnterpriseHook: ClientEnterpriseHook,
     private val loginTokenExchanger: LoginTokenExchanger,
+    @AppCoroutineScope private val appCoroutineScope: CoroutineScope,
 ) : MatrixAuthenticationService {
+    // Family Chat: sign-in code redemptions run one at a time, see [loginWithToken].
+    private val tokenLoginMutex = Mutex()
+
     // Any existing Element Classic session that we want to try to import secrets from during login.
     private var elementClassicSession: ElementClassicSession? = null
 
@@ -187,63 +198,89 @@ class RustMatrixAuthenticationService(
             }
         }
 
-    override suspend fun loginWithToken(homeserverUrl: String, token: String): Result<SessionId> =
-        withContext(coroutineDispatchers.io) {
-            val emptySessionPath = rotateSessionPath()
-            runCatchingExceptions {
-                val client = makeClient(sessionPaths = emptySessionPath) {
-                    homeserverUrl(homeserverUrl)
-                }
-                currentClient = client
-                // The SDK has no `m.login.token` entry point; redeem the code ourselves and hand the
-                // credentials over as a restored session, exactly as a stored session is reopened.
-                val credentials = loginTokenExchanger.exchange(
-                    homeserverUrl = homeserverUrl,
-                    token = token,
-                    initialDeviceDisplayName = INITIAL_DEVICE_NAME,
-                )
-                client.restoreSession(
-                    Session(
-                        accessToken = credentials.accessToken,
-                        refreshToken = credentials.refreshToken,
-                        userId = credentials.userId,
-                        deviceId = credentials.deviceId,
-                        homeserverUrl = homeserverUrl,
-                        oauthData = null,
-                        // The client was built with DISCOVER_NATIVE; the family homeservers all serve native sliding sync.
-                        slidingSyncVersion = SlidingSyncVersion.NATIVE,
-                    )
-                )
-                // Ensure that the user is not already logged in with the same account
-                ensureNotAlreadyLoggedIn(client)
-                val sessionData = client.session()
-                    .toSessionData(
-                        isTokenValid = true,
-                        loginType = LoginType.DIRECT,
-                        passphrase = pendingKey.formattedAsString(),
-                        sessionPaths = emptySessionPath,
-                        homeserverUrl = homeserverUrl,
-                    )
-                val matrixClient = rustMatrixClientFactory.create(client, sessionData, isMessageSearchAvailable())
-
-                // Apply enterprise hooks to the newly created client as soon as possible
-                clientEnterpriseHook(matrixClient)
-
-                newMatrixClientObservers.forEach { it.invoke(matrixClient) }
-                sessionStore.addSession(sessionData)
-
-                // Clean up the strong reference held here since it's no longer necessary
-                clear(destroyClient = false)
-
-                SessionId(sessionData.userId)
-            }.onFailure {
-                clear(destroyClient = true)
-            }.mapFailure { failure ->
-                // The failure never carries the token; the exchanger only reports HTTP status and errcode.
-                Timber.e(failure, "Failed to login with a sign-in code")
-                failure.mapAuthenticationException()
+    override suspend fun loginWithToken(homeserverUrl: String, token: String, expectedUserId: String?): Result<SessionId> {
+        // The server consumes the code as soon as it receives it. Run the redemption in the application scope so
+        // that a caller going away (the screen left, the activity recreated) does not abandon a half-made session,
+        // and one at a time so that a second link cannot interleave with the first.
+        val redemption = appCoroutineScope.async(coroutineDispatchers.io) {
+            tokenLoginMutex.withLock {
+                redeemLoginToken(homeserverUrl = homeserverUrl, token = token, expectedUserId = expectedUserId)
             }
         }
+        return redemption.await()
+    }
+
+    private suspend fun redeemLoginToken(homeserverUrl: String, token: String, expectedUserId: String?): Result<SessionId> {
+        // Its own session paths and client, not the shared ones used by the other login flows: a password login
+        // started meanwhile must not delete this session's directory, nor this one close that login's client.
+        val tokenSessionPaths = sessionPathsFactory.create()
+        var client: Client? = null
+        var credentials: LoginTokenCredentials? = null
+        return runCatchingExceptions {
+            val newClient = makeClient(sessionPaths = tokenSessionPaths) {
+                homeserverUrl(homeserverUrl)
+            }
+            client = newClient
+            // The SDK has no `m.login.token` entry point; redeem the code ourselves and hand the
+            // credentials over as a restored session, exactly as a stored session is reopened.
+            val newCredentials = loginTokenExchanger.exchange(
+                homeserverUrl = homeserverUrl,
+                token = token,
+                initialDeviceDisplayName = INITIAL_DEVICE_NAME,
+            )
+            credentials = newCredentials
+            // Login CSRF: a code for someone else's account must not sign this device into it.
+            if (expectedUserId != null && newCredentials.userId != expectedUserId) {
+                Timber.w("Sign-in code redeemed for another account than the link named")
+                throw SignInCodeException.UserMismatch()
+            }
+            newClient.restoreSession(
+                Session(
+                    accessToken = newCredentials.accessToken,
+                    refreshToken = newCredentials.refreshToken,
+                    userId = newCredentials.userId,
+                    deviceId = newCredentials.deviceId,
+                    homeserverUrl = homeserverUrl,
+                    oauthData = null,
+                    // The client was built with DISCOVER_NATIVE; the family homeservers all serve native sliding sync.
+                    slidingSyncVersion = SlidingSyncVersion.NATIVE,
+                )
+            )
+            // Ensure that the user is not already logged in with the same account
+            ensureNotAlreadyLoggedIn(newClient)
+            val sessionData = newClient.session()
+                .toSessionData(
+                    isTokenValid = true,
+                    loginType = LoginType.DIRECT,
+                    passphrase = pendingKey.formattedAsString(),
+                    sessionPaths = tokenSessionPaths,
+                    homeserverUrl = homeserverUrl,
+                )
+            val matrixClient = rustMatrixClientFactory.create(newClient, sessionData, isMessageSearchAvailable())
+
+            // Apply enterprise hooks to the newly created client as soon as possible
+            clientEnterpriseHook(matrixClient)
+
+            newMatrixClientObservers.forEach { it.invoke(matrixClient) }
+            sessionStore.addSession(sessionData)
+
+            SessionId(sessionData.userId)
+        }.onFailure {
+            client?.close()
+            // The server issued a device that the app is not going to use: sign it out again rather than leave
+            // a live, unknown session on the account.
+            credentials?.let { issued ->
+                withContext(NonCancellable) {
+                    loginTokenExchanger.logout(homeserverUrl = homeserverUrl, accessToken = issued.accessToken)
+                }
+            }
+            tokenSessionPaths.deleteRecursively()
+        }.mapFailure { failure ->
+            // The failure never carries the token; the exchanger only reports HTTP status and errcode.
+            Timber.e(failure, "Failed to login with a sign-in code")
+            failure as? SignInCodeException ?: failure.mapAuthenticationException()
+        }
+    }
 
     private suspend fun tryToImportSecretForElementClassicSession(client: Client) {
         elementClassicSession

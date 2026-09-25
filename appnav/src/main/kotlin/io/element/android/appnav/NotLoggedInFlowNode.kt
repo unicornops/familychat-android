@@ -100,7 +100,7 @@ class NotLoggedInFlowNode(
                         accountProvider = inputs.loginParams?.accountProvider,
                         loginHint = inputs.loginParams?.loginHint,
                         hs = inputs.loginParams?.hs,
-                        token = inputs.loginParams?.token,
+                        signInCodeId = inputs.loginParams?.signInCodeId,
                     ),
                     callback = callback,
                 )

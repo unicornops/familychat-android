@@ -18,10 +18,10 @@ interface LoginEntryPoint : FeatureEntryPoint {
     data class Params(
         val accountProvider: String?,
         val loginHint: String?,
-        /** Host answering the client-server API for the family's homeserver; only with [token]. */
+        /** Host answering the client-server API for the family's homeserver; only with [signInCodeId]. */
         val hs: String? = null,
-        /** A single-use `m.login.token` from a control panel sign-in code; only with [hs]. */
-        val token: String? = null,
+        /** Names a control panel sign-in code held in memory by the login feature (see [LoginParams]); only with [hs]. */
+        val signInCodeId: String? = null,
     )
 
     interface Callback : Plugin {

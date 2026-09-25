@@ -9,9 +9,8 @@ package io.element.android.libraries.matrix.impl.auth
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.core.extensions.runCatchingExceptions
-import io.element.android.libraries.matrix.api.auth.AuthErrorCode
 import io.element.android.libraries.matrix.api.auth.AuthenticationException
-import io.element.android.libraries.matrix.api.auth.errorCode
+import io.element.android.libraries.matrix.api.auth.SignInCodeException
 import io.element.android.tests.testutils.testCoroutineDispatchers
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -72,7 +71,7 @@ class DefaultLoginTokenExchangerTest {
     }
 
     @Test
-    fun `a used or expired token is a FORBIDDEN authentication error`() = runTest {
+    fun `a used or expired token is a rejected code, carrying the HTTP status`() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(403).setBody("""{"errcode":"M_FORBIDDEN","error":"Invalid login token"}""")
         )
@@ -80,20 +79,92 @@ class DefaultLoginTokenExchangerTest {
 
         val failure = runCatchingExceptions { sut.exchange(server.url("/").toString(), A_TOKEN, A_DEVICE_NAME) }.exceptionOrNull()
 
-        assertThat(failure).isInstanceOf(AuthenticationException.Generic::class.java)
-        assertThat((failure as AuthenticationException).errorCode).isEqualTo(AuthErrorCode.FORBIDDEN)
+        assertThat(failure).isInstanceOf(SignInCodeException.Rejected::class.java)
+        assertThat((failure as SignInCodeException.Rejected).httpStatus).isEqualTo(403)
+        assertThat(failure.errcode).isEqualTo("M_FORBIDDEN")
         assertThat(failure.message).doesNotContain(A_TOKEN)
     }
 
     @Test
-    fun `an unparseable answer is a generic authentication error`() = runTest {
+    fun `a 401 is a rejected code whatever its errcode`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("""{"errcode":"M_UNKNOWN_TOKEN","error":"Unknown"}"""))
+        val sut = createExchanger()
+
+        val failure = runCatchingExceptions { sut.exchange(server.url("/").toString(), A_TOKEN, A_DEVICE_NAME) }.exceptionOrNull()
+
+        assertThat(failure).isInstanceOf(SignInCodeException.Rejected::class.java)
+        assertThat((failure as SignInCodeException.Rejected).httpStatus).isEqualTo(401)
+    }
+
+    @Test
+    fun `any other refusal is a failure carrying the HTTP status`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("oops"))
+        val sut = createExchanger()
+
+        val failure = runCatchingExceptions { sut.exchange(server.url("/").toString(), A_TOKEN, A_DEVICE_NAME) }.exceptionOrNull()
+
+        assertThat(failure).isInstanceOf(SignInCodeException.Failed::class.java)
+        assertThat((failure as SignInCodeException.Failed).httpStatus).isEqualTo(500)
+    }
+
+    @Test
+    fun `a redirect is never followed and is a failure`() = runTest {
+        val elsewhere = MockWebServer().apply { start() }
+        try {
+            elsewhere.enqueue(MockResponse().setBody("""{"user_id":"@ana:x","access_token":"syt_access","device_id":"D"}"""))
+            server.enqueue(
+                MockResponse().setResponseCode(307).setHeader("Location", elsewhere.url("/_matrix/client/v3/login").toString())
+            )
+            val sut = createExchanger()
+
+            val failure = runCatchingExceptions { sut.exchange(server.url("/").toString(), A_TOKEN, A_DEVICE_NAME) }.exceptionOrNull()
+
+            assertThat(failure).isInstanceOf(SignInCodeException.Failed::class.java)
+            assertThat((failure as SignInCodeException.Failed).httpStatus).isEqualTo(307)
+            assertThat(server.requestCount).isEqualTo(1)
+            // The token never went to the redirect target
+            assertThat(elsewhere.requestCount).isEqualTo(0)
+        } finally {
+            elsewhere.shutdown()
+        }
+    }
+
+    @Test
+    fun `an unparseable answer is a failure`() = runTest {
         server.enqueue(MockResponse().setBody("<html>not json</html>"))
         val sut = createExchanger()
 
         val failure = runCatchingExceptions { sut.exchange(server.url("/").toString(), A_TOKEN, A_DEVICE_NAME) }.exceptionOrNull()
 
-        assertThat(failure).isInstanceOf(AuthenticationException.Generic::class.java)
-        assertThat((failure as AuthenticationException).errorCode).isEqualTo(AuthErrorCode.UNKNOWN)
+        assertThat(failure).isInstanceOf(SignInCodeException.Failed::class.java)
+    }
+
+    @Test
+    fun `logout posts to the logout endpoint with the access token and never throws`() = runTest {
+        server.enqueue(MockResponse().setBody("{}"))
+        val sut = createExchanger()
+
+        sut.logout(server.url("/").toString(), "syt_access")
+
+        val request = server.takeRequest()
+        assertThat(request.method).isEqualTo("POST")
+        assertThat(request.path).isEqualTo("/_matrix/client/v3/logout")
+        assertThat(request.getHeader("Authorization")).isEqualTo("Bearer syt_access")
+
+        // Neither a refusal nor an unreachable server escapes
+        server.enqueue(MockResponse().setResponseCode(401))
+        sut.logout(server.url("/").toString(), "syt_access")
+        val url = server.url("/").toString()
+        server.shutdown()
+        sut.logout(url, "syt_access")
+        assertThat(loggedLines.joinToString("\n")).doesNotContain("syt_access")
+    }
+
+    @Test
+    fun `the credentials never print their tokens`() {
+        val credentials = LoginTokenCredentials(userId = "@ana:x", accessToken = "syt_access", deviceId = "D", refreshToken = "syr_refresh")
+        assertThat(credentials.toString()).doesNotContain("syt_access")
+        assertThat(credentials.toString()).doesNotContain("syr_refresh")
     }
 
     @Test

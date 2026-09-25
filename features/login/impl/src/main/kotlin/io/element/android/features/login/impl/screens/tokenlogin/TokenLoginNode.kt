@@ -28,24 +28,24 @@ class TokenLoginNode(
     presenterFactory: TokenLoginPresenter.Factory,
 ) : Node(buildContext, plugins = plugins) {
     /**
-     * In-memory only (a [NodeInputs] plugin, not part of the parcelled navigation state): the token never
-     * enters a saved-state bundle.
+     * The sign-in code itself is not here: [signInCodeId] names it in the in-memory `SignInCodeStore`.
      */
     data class Inputs(
         val hs: String,
-        val token: String,
+        val loginHint: String?,
+        val signInCodeId: String,
     ) : NodeInputs
 
     interface Callback : Plugin {
-        /** The code could not be used: continue with the regular, pre-filled sign-in flow. */
-        fun onTokenLoginFailed()
+        /** The code was declined or could not be used: continue with the regular, pre-filled sign-in flow. */
+        fun onContinueWithPassword()
     }
 
     private val inputs: Inputs = inputs()
     private val callback: Callback = callback()
     private val presenter = presenterFactory.create(
-        params = TokenLoginPresenter.Params(hs = inputs.hs, token = inputs.token),
-        onTokenLoginFailed = callback::onTokenLoginFailed,
+        params = TokenLoginPresenter.Params(hs = inputs.hs, loginHint = inputs.loginHint, signInCodeId = inputs.signInCodeId),
+        onContinueWithPassword = callback::onContinueWithPassword,
     )
 
     @Composable

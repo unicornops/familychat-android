@@ -8,6 +8,9 @@
 package io.element.android.features.login.impl.screens.tokenlogin
 
 sealed interface TokenLoginEvent {
-    /** The user acknowledged that the sign-in code could not be used; continue with the password flow. */
+    /** The user confirmed they want to sign in with the code: redeem it. */
+    data object Confirm : TokenLoginEvent
+
+    /** The user declined the code, or acknowledged that it could not be used: continue with the password flow. */
     data object ContinueWithPassword : TokenLoginEvent
 }
