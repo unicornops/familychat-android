@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright 2026 Unicorn Operations Ltd.
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only
+  ~ Please see LICENSE files in the repository root for full details.
+  -->
+<!-- Family Chat strings. Never edit localazy.xml; Localazy sync is disabled for this fork, so these stay here. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="screen_change_server_textfield_placeholder_family">"yourfamily.safechat.family"</string>
+    <string name="screen_change_server_textfield_footer_login_family">"Enter your family's server, as shown in your family's control panel."</string>
+    <string name="screen_token_login_confirm_title">"Sign in as %1$s?"</string>
+    <string name="screen_token_login_confirm_subtitle">"This sign-in code from your family's control panel signs this device in to %1$s. Only continue if you asked for it."</string>
+    <string name="screen_token_login_title">"Signing you in"</string>
+    <string name="screen_token_login_subtitle">"Using the sign-in code from your family's control panel on %1$s."</string>
+    <string name="screen_token_login_error_title">"This sign-in code cannot be used"</string>
+    <string name="screen_token_login_error_code_rejected">"That sign-in code has already been used or has expired. Ask a parent for a new code from the control panel, or sign in with your password."</string>
+    <string name="screen_token_login_error_user_mismatch">"That sign-in code is for a different account than the link named, so this device was not signed in. Ask a parent for a new code from the control panel, or sign in with your password."</string>
+    <string name="screen_token_login_error_homeserver_not_allowed">"That sign-in link points to a server Family Chat does not connect to, so the code was not used. Ask a parent for a new code from the control panel, or sign in with your password."</string>
+    <string name="screen_token_login_error_already_signed_in">"That account is already signed in on this device."</string>
+    <string name="screen_token_login_error_generic">"Your family's server could not be reached with this sign-in code. Check your connection and try a new code, or sign in with your password."</string>
+</resources>

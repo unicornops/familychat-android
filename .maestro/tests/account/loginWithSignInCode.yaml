@@ -1,0 +1,46 @@
+appId: ${MAESTRO_APP_ID}
+---
+# Sign in with a control panel sign-in code (Family Chat link login, unicornops/family-chat#236).
+#
+# A code is single-use and valid for five minutes, so this flow is not part of allTests.yaml: mint one right
+# before running it, with a parent session on the control panel:
+#   POST https://panel.safechat.family/api/accounts/members/<id>/login-token/
+# and pass the `hs` and `token` of the returned link, plus the member's account provider and Matrix ID:
+#   maestro test -e MAESTRO_APP_ID=family.safechat.android.debug \
+#     -e MAESTRO_LINK_ACCOUNT_PROVIDER=smith.safechat.family -e MAESTRO_LINK_MXID=@ana:smith.safechat.family \
+#     -e MAESTRO_LINK_HS=smith.safechat.family -e MAESTRO_LINK_TOKEN=<token> \
+#     -e MAESTRO_RECOVERY_KEY=<key> .maestro/tests/account/loginWithSignInCode.yaml
+#
+# `autoVerify` makes Android treat safechat.family as verified for the app under test, because the
+# production assetlinks.json still carries a placeholder fingerprint (#240).
+- clearState
+- openLink:
+    link: "https://safechat.family/app/login?account_provider=${MAESTRO_LINK_ACCOUNT_PROVIDER}&login_hint=mxid:${MAESTRO_LINK_MXID}&hs=${MAESTRO_LINK_HS}&token=${MAESTRO_LINK_TOKEN}"
+    autoVerify: true
+# Nothing is redeemed before the user confirms the account the code signs into.
+- extendedWaitUntil:
+    visible: "Sign in as ${MAESTRO_LINK_MXID}?"
+    timeout: 10000
+- takeScreenshot: build/maestro/110-SignInCode
+- tapOn: "Continue"
+# The code was redeemed: no password prompt, straight to the new-device verification.
+- runFlow: ../assertions/assertSessionVerificationDisplayed.yaml
+- runFlow: ./verifySession.yaml
+- runFlow: ../assertions/assertHomeDisplayed.yaml
+- takeScreenshot: build/maestro/111-SignInCodeHome
+# The same code cannot be used twice: a second open is refused and lands on the sign-in for the family's server.
+- runFlow: ./logout.yaml
+- openLink:
+    link: "https://safechat.family/app/login?account_provider=${MAESTRO_LINK_ACCOUNT_PROVIDER}&login_hint=mxid:${MAESTRO_LINK_MXID}&hs=${MAESTRO_LINK_HS}&token=${MAESTRO_LINK_TOKEN}"
+    autoVerify: true
+- extendedWaitUntil:
+    visible: "Sign in as ${MAESTRO_LINK_MXID}?"
+    timeout: 10000
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "This sign-in code cannot be used"
+    timeout: 20000
+- takeScreenshot: build/maestro/112-SignInCodeReplayRefused
+- tapOn: "Continue"
+# The password fallback signs in to the host the code was for (`hs`), not the safechat.family apex.
+- assertVisible: "Sign in to ${MAESTRO_LINK_HS}"

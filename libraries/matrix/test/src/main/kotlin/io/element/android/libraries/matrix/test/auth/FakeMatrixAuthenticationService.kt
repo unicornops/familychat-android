@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -32,6 +33,7 @@ class FakeMatrixAuthenticationService(
     var loginWithQrCodeResult: (qrCodeData: MatrixQrCodeLoginData, progress: (QrCodeLoginStep) -> Unit) -> Result<SessionId> =
         lambdaRecorder<MatrixQrCodeLoginData, (QrCodeLoginStep) -> Unit, Result<SessionId>> { _, _ -> Result.success(A_SESSION_ID) },
     private val setHomeserverResult: (String) -> Result<MatrixHomeServerDetails> = { lambdaError() },
+    var loginWithTokenResult: (homeserverUrl: String, token: String, expectedUserId: String?) -> Result<SessionId> = { _, _, _ -> lambdaError() },
     private val setElementClassicSessionResult: (ElementClassicSession?) -> Unit = { lambdaError() },
     private val doSecretsContainBackupKeyResult: (UserId, String, String) -> Boolean = { _, _, _ -> lambdaError() },
 ) : MatrixAuthenticationService {
@@ -61,6 +63,12 @@ class FakeMatrixAuthenticationService(
         loginError?.let { Result.failure(it) } ?: run {
             onAuthenticationListener?.invoke(matrixClient ?: FakeMatrixClient())
             Result.success(A_USER_ID)
+        }
+    }
+
+    override suspend fun loginWithToken(homeserverUrl: String, token: String, expectedUserId: String?): Result<SessionId> = simulateLongTask {
+        loginWithTokenResult(homeserverUrl, token, expectedUserId).onSuccess {
+            onAuthenticationListener?.invoke(matrixClient ?: FakeMatrixClient())
         }
     }
 

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -61,8 +62,9 @@ class OnBoardingPresenter(
         val localCoroutineScope = rememberCoroutineScope()
         val forcedAccountProvider = remember {
             // If homeserverAllowList() returns a singleton list, this is the default account provider.
-            // In this case, the user can sign in using this homeserver, or use QrCode login
-            enterpriseService.homeserverAllowList().singleOrNull()
+            // In this case, the user can sign in using this homeserver, or use QrCode login.
+            // Family Chat: nothing is forced, the user enters their family's server (see EnterpriseService).
+            enterpriseService.forcedAccountProvider()
         }
         val canConnectToAnyHomeserver = remember {
             enterpriseService.canConnectToAnyHomeserver()
@@ -82,9 +84,10 @@ class OnBoardingPresenter(
             }
         }
         val defaultAccountProvider = remember(linkAccountProvider) {
-            // If there is a forced account provider, this is the default account provider
-            // Else use the account provider passed in the params if any and if allowed
-            forcedAccountProvider ?: linkAccountProvider
+            // Family Chat: the account provider passed in the params (the family's server from a sign-in link),
+            // if allowed, wins over a forced one: it has passed the same allowlist, and it is the one the link's
+            // login hint belongs to. Else use the forced account provider, if any.
+            linkAccountProvider ?: forcedAccountProvider
         }
         val canLoginWithQrCode by produceState(initialValue = false, linkAccountProvider) {
             value = linkAccountProvider == null
@@ -111,7 +114,10 @@ class OnBoardingPresenter(
                             isAccountCreation = false,
                             homeserverUrl = event.defaultAccountProvider,
                             resolvedHomeserverUrl = null,
-                            loginHint = params.loginHint?.takeIf { forcedAccountProvider == null },
+                            // The hint names an account on the link's server: only pass it along to that server.
+                            loginHint = params.loginHint?.takeIf {
+                                linkAccountProvider != null && event.defaultAccountProvider == linkAccountProvider
+                            },
                         )
                     )
                 }

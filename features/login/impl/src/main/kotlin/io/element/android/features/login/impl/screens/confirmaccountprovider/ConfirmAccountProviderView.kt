@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -162,12 +163,13 @@ fun ConfirmAccountProviderView(
                 .focusRequester(focusRequester)
                 .testTag(TestTags.changeServerServer),
             label = stringResource(id = R.string.screen_change_server_textfield_header),
-            placeholder = stringResource(id = R.string.screen_change_server_textfield_placeholder),
+            // Family Chat: every family has its own server under safechat.family.
+            placeholder = stringResource(id = R.string.screen_change_server_textfield_placeholder_family),
             supportingText = stringResource(
                 id = if (state.isAccountCreation) {
                     R.string.screen_change_server_textfield_footer_register
                 } else {
-                    R.string.screen_change_server_textfield_footer_login
+                    R.string.screen_change_server_textfield_footer_login_family
                 }
             ),
             visualTransformation = ghostTransformation,

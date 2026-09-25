@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -45,6 +46,25 @@ interface MatrixAuthenticationService {
      * @param password the account password.
      */
     suspend fun login(username: String, password: String): Result<SessionId>
+
+    /**
+     * Family Chat: signs in with a single-use `m.login.token` from a control panel sign-in code, against the
+     * homeserver the link named. Unlike [login] this needs no prior [setHomeserver] call.
+     *
+     * Once the code is sent the server consumes it, so the redemption runs to completion in the application scope
+     * even if the caller is cancelled (its session is then stored as usual), and redemptions never overlap. Any
+     * failure after the server issued credentials signs the new device out again.
+     *
+     * Failures: a used or expired code is a [SignInCodeException.Rejected], a device for another account than
+     * [expectedUserId] a [SignInCodeException.UserMismatch], any other refusal a [SignInCodeException.Failed],
+     * an unreachable homeserver an [AuthenticationException.ServerUnreachable] and an account that is already
+     * signed in an [AuthenticationException.AccountAlreadyLoggedIn].
+     *
+     * @param homeserverUrl the `https://<hs>` base URL answering the client-server API for the family.
+     * @param token the login token; never logged, never persisted.
+     * @param expectedUserId the Matrix ID the link named, if any: a code for another account is refused.
+     */
+    suspend fun loginWithToken(homeserverUrl: String, token: String, expectedUserId: String?): Result<SessionId>
 
     /*
      * OAuth part.

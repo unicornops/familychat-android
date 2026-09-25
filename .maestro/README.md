@@ -32,6 +32,13 @@ maestro test \
     .maestro/allTests.yaml
 ```
 
+### Sign-in code (link login)
+
+`tests/account/loginWithSignInCode.yaml` covers the Family Chat link login (`https://safechat.family/app/login?…&hs=…&token=…`).
+It is **not** in `allTests.yaml` because a sign-in code is single-use and expires after five minutes: mint one from the
+control panel (`POST /api/accounts/members/<id>/login-token/` as a parent) right before running it. The header of the flow
+lists the `MAESTRO_LINK_*` variables it needs.
+
 ### Output
 
 Test result will be printed on the console, and screenshots will be generated at `./build/maestro`

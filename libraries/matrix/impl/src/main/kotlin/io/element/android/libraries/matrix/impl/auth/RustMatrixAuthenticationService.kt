@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -17,6 +18,7 @@ import io.element.android.libraries.androidutils.crypto.ClientSecret
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.core.extensions.mapFailure
 import io.element.android.libraries.core.extensions.runCatchingExceptions
+import io.element.android.libraries.di.annotations.AppCoroutineScope
 import io.element.android.libraries.featureflag.api.FeatureFlagService
 import io.element.android.libraries.featureflag.api.FeatureFlags
 import io.element.android.libraries.matrix.api.MatrixClient
@@ -27,6 +29,7 @@ import io.element.android.libraries.matrix.api.auth.MatrixHomeServerDetails
 import io.element.android.libraries.matrix.api.auth.OAuthDetails
 import io.element.android.libraries.matrix.api.auth.OAuthPrompt
 import io.element.android.libraries.matrix.api.auth.SessionRestorationException
+import io.element.android.libraries.matrix.api.auth.SignInCodeException
 import io.element.android.libraries.matrix.api.auth.qrlogin.MatrixQrCodeLoginData
 import io.element.android.libraries.matrix.api.auth.qrlogin.QrCodeLoginStep
 import io.element.android.libraries.matrix.api.core.SessionId
@@ -46,7 +49,12 @@ import io.element.android.libraries.matrix.impl.paths.SessionPathsFactory
 import io.element.android.libraries.sessionstorage.api.LoginType
 import io.element.android.libraries.sessionstorage.api.SessionStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.matrix.rustcomponents.sdk.Client
@@ -57,6 +65,8 @@ import org.matrix.rustcomponents.sdk.QrCodeDecodeException
 import org.matrix.rustcomponents.sdk.QrLoginProgress
 import org.matrix.rustcomponents.sdk.QrLoginProgressListener
 import org.matrix.rustcomponents.sdk.SecretsBundleWithUserId
+import org.matrix.rustcomponents.sdk.Session
+import org.matrix.rustcomponents.sdk.SlidingSyncVersion
 import timber.log.Timber
 import uniffi.matrix_sdk.OAuthAuthorizationData
 import kotlin.time.Duration.Companion.seconds
@@ -73,7 +83,12 @@ class RustMatrixAuthenticationService(
     private val enterpriseService: EnterpriseService,
     private val featureFlagService: FeatureFlagService,
     private val clientEnterpriseHook: ClientEnterpriseHook,
+    private val loginTokenExchanger: LoginTokenExchanger,
+    @AppCoroutineScope private val appCoroutineScope: CoroutineScope,
 ) : MatrixAuthenticationService {
+    // Family Chat: sign-in code redemptions run one at a time, see [loginWithToken].
+    private val tokenLoginMutex = Mutex()
+
     // Any existing Element Classic session that we want to try to import secrets from during login.
     private var elementClassicSession: ElementClassicSession? = null
 
@@ -152,7 +167,7 @@ class RustMatrixAuthenticationService(
                 client.login(
                     username = username,
                     password = password,
-                    initialDeviceName = "Element X Android",
+                    initialDeviceName = INITIAL_DEVICE_NAME,
                     deviceId = null,
                 )
                 // Ensure that the user is not already logged in with the same account
@@ -182,6 +197,90 @@ class RustMatrixAuthenticationService(
                 failure.mapAuthenticationException()
             }
         }
+
+    override suspend fun loginWithToken(homeserverUrl: String, token: String, expectedUserId: String?): Result<SessionId> {
+        // The server consumes the code as soon as it receives it. Run the redemption in the application scope so
+        // that a caller going away (the screen left, the activity recreated) does not abandon a half-made session,
+        // and one at a time so that a second link cannot interleave with the first.
+        val redemption = appCoroutineScope.async(coroutineDispatchers.io) {
+            tokenLoginMutex.withLock {
+                redeemLoginToken(homeserverUrl = homeserverUrl, token = token, expectedUserId = expectedUserId)
+            }
+        }
+        return redemption.await()
+    }
+
+    private suspend fun redeemLoginToken(homeserverUrl: String, token: String, expectedUserId: String?): Result<SessionId> {
+        // Its own session paths and client, not the shared ones used by the other login flows: a password login
+        // started meanwhile must not delete this session's directory, nor this one close that login's client.
+        val tokenSessionPaths = sessionPathsFactory.create()
+        var client: Client? = null
+        var credentials: LoginTokenCredentials? = null
+        return runCatchingExceptions {
+            val newClient = makeClient(sessionPaths = tokenSessionPaths) {
+                homeserverUrl(homeserverUrl)
+            }
+            client = newClient
+            // The SDK has no `m.login.token` entry point; redeem the code ourselves and hand the
+            // credentials over as a restored session, exactly as a stored session is reopened.
+            val newCredentials = loginTokenExchanger.exchange(
+                homeserverUrl = homeserverUrl,
+                token = token,
+                initialDeviceDisplayName = INITIAL_DEVICE_NAME,
+            )
+            credentials = newCredentials
+            // Login CSRF: a code for someone else's account must not sign this device into it.
+            if (expectedUserId != null && newCredentials.userId != expectedUserId) {
+                Timber.w("Sign-in code redeemed for another account than the link named")
+                throw SignInCodeException.UserMismatch()
+            }
+            newClient.restoreSession(
+                Session(
+                    accessToken = newCredentials.accessToken,
+                    refreshToken = newCredentials.refreshToken,
+                    userId = newCredentials.userId,
+                    deviceId = newCredentials.deviceId,
+                    homeserverUrl = homeserverUrl,
+                    oauthData = null,
+                    // The client was built with DISCOVER_NATIVE; the family homeservers all serve native sliding sync.
+                    slidingSyncVersion = SlidingSyncVersion.NATIVE,
+                )
+            )
+            // Ensure that the user is not already logged in with the same account
+            ensureNotAlreadyLoggedIn(newClient)
+            val sessionData = newClient.session()
+                .toSessionData(
+                    isTokenValid = true,
+                    loginType = LoginType.DIRECT,
+                    passphrase = pendingKey.formattedAsString(),
+                    sessionPaths = tokenSessionPaths,
+                    homeserverUrl = homeserverUrl,
+                )
+            val matrixClient = rustMatrixClientFactory.create(newClient, sessionData, isMessageSearchAvailable())
+
+            // Apply enterprise hooks to the newly created client as soon as possible
+            clientEnterpriseHook(matrixClient)
+
+            newMatrixClientObservers.forEach { it.invoke(matrixClient) }
+            sessionStore.addSession(sessionData)
+
+            SessionId(sessionData.userId)
+        }.onFailure {
+            client?.close()
+            // The server issued a device that the app is not going to use: sign it out again rather than leave
+            // a live, unknown session on the account.
+            credentials?.let { issued ->
+                withContext(NonCancellable) {
+                    loginTokenExchanger.logout(homeserverUrl = homeserverUrl, accessToken = issued.accessToken)
+                }
+            }
+            tokenSessionPaths.deleteRecursively()
+        }.mapFailure { failure ->
+            // The failure never carries the token; the exchanger only reports HTTP status and errcode.
+            Timber.e(failure, "Failed to login with a sign-in code")
+            failure as? SignInCodeException ?: failure.mapAuthenticationException()
+        }
+    }
 
     private suspend fun tryToImportSecretForElementClassicSession(client: Client) {
         elementClassicSession
@@ -465,5 +564,9 @@ class RustMatrixAuthenticationService(
             val status = sessionVerificationService.sessionVerifiedStatus.first { it != SessionVerifiedStatus.Unknown }
             Timber.d("Finished waiting for a known verification status: $status")
         } ?: Timber.w("Timed out waiting for a known verification status")
+    }
+
+    companion object {
+        private const val INITIAL_DEVICE_NAME = "Family Chat Android"
     }
 }

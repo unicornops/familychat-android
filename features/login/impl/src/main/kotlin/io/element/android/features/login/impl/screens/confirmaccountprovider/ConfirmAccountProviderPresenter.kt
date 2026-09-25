@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -62,9 +63,17 @@ class ConfirmAccountProviderPresenter(
         // enterprise/MDM-configured allow-list, then matrix.org (always available, even before any sign-in).
         // The "*" wildcard is a routing marker, not a real provider, so it is filtered out. Everything is
         // rendered without the https:// scheme (added back at connection time).
+        // Family Chat: when the single allowlist entry is not forced, it is only the parent domain of the family
+        // servers (safechat.family), not a server anyone signs in to. It is neither pre-filled nor suggested.
+        val parentDomainOnly = remember {
+            enterpriseService.homeserverAllowList().singleOrNull()
+                ?.takeIf { enterpriseService.forcedAccountProvider() == null }
+                ?.withoutScheme()
+        }
         val autocompleteCandidates = remember(homeserverHistory) {
             (homeserverHistory + enterpriseService.homeserverAllowList() + AuthenticationConfig.MATRIX_ORG_URL)
                 .filter { it != EnterpriseService.ANY_ACCOUNT_PROVIDER }
+                .filter { it.withoutScheme() != parentDomainOnly }
                 .map { it.withoutScheme() }
                 .distinct()
         }
@@ -72,7 +81,7 @@ class ConfirmAccountProviderPresenter(
         // Editable input, seeded from the current (history-defaulted) account provider until the user edits it.
         // Displayed without the scheme, so the field shows e.g. "matrix.org" rather than "https://matrix.org".
         var userInput by rememberSaveable { mutableStateOf<String?>(null) }
-        val accountProviderInput = userInput ?: accountProvider.url.withoutScheme()
+        val accountProviderInput = userInput ?: accountProvider.url.withoutScheme().takeUnless { it == parentDomainOnly }.orEmpty()
 
         // Offer the first candidate that the current input is a (case-insensitive) prefix of.
         val accountProviderSuggestion = remember(accountProviderInput, autocompleteCandidates) {

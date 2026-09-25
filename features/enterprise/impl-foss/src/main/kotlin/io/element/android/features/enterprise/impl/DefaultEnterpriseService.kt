@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -25,23 +26,40 @@ class DefaultEnterpriseService : EnterpriseService {
     override suspend fun tweakMasUrl(url: String, urlContentFetcher: ClientUrlContentFetcher) = url
 
     /**
-     * Family Chat is locked to its own account provider. A single entry also makes it the default
-     * account provider, which hides the server picker and the "create account" entry point.
+     * Family Chat only connects to family servers under [ACCOUNT_PROVIDER]. It is the configured account
+     * provider (the error messages name it), but it is not itself a homeserver, see [forcedAccountProvider].
      */
     override fun homeserverAllowList(): List<String> = listOf(ACCOUNT_PROVIDER)
 
     /**
-     * Allows [ACCOUNT_PROVIDER] and every family subdomain of it. Custom domains brought by a
-     * family (BYOD) are not accepted yet, see unicornops/family-chat#234.
+     * Nothing is forced: every family has its own server (`<family>.safechat.family`), so the user enters
+     * theirs, or a sign-in link names it. [isAllowedToConnectToHomeserver] keeps that within the allowlist.
+     */
+    override fun forcedAccountProvider(): String? = null
+
+    /**
+     * Allows every family subdomain of [ACCOUNT_PROVIDER] and nothing else, not even the apex, which serves the
+     * website rather than a homeserver. Custom domains brought by a family (BYOD) are not accepted yet, see
+     * unicornops/family-chat#234.
+     *
+     * The input is a bare `host[:port]`, optionally prefixed with `https://` and followed by a single `/`.
+     * Anything else (another scheme, a path, a query, a fragment, user info, a backslash) is refused rather than
+     * guessed at, so that a value such as `https://evil.example?.safechat.family` cannot pass for a family host.
      */
     override suspend fun isAllowedToConnectToHomeserver(homeserverUrl: String): Boolean {
-        val host = homeserverUrl
-            .substringAfter("://")
-            .substringBefore('/')
-            .substringBefore(':')
+        val host = parseHost(homeserverUrl) ?: return false
+        return host.endsWith(".$ACCOUNT_PROVIDER")
+    }
+
+    private fun parseHost(homeserverUrl: String): String? {
+        val hostAndPort = homeserverUrl
             .trim()
             .lowercase()
-        return host == ACCOUNT_PROVIDER || host.endsWith(".$ACCOUNT_PROVIDER")
+            .removePrefix("https://")
+            .removeSuffix("/")
+        return hostAndPort
+            .takeIf { HOST_PORT_REGEX.matches(it) }
+            ?.substringBefore(':')
     }
 
     override suspend fun isElementProEnforced(serverName: String): Boolean = false
@@ -68,5 +86,8 @@ class DefaultEnterpriseService : EnterpriseService {
     companion object {
         /** The only account provider Family Chat signs in to. */
         const val ACCOUNT_PROVIDER = "safechat.family"
+
+        /** DNS hostname labels, optionally followed by a port; the same shape the login link accepts for `hs`. */
+        private val HOST_PORT_REGEX = Regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*(:[0-9]{1,5})?$")
     }
 }

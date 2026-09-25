@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -384,6 +385,26 @@ class ConfirmAccountProviderPresenterTest {
             initialState.eventSink(ConfirmAccountProviderEvent.UserInputChanged("ele"))
             val suggestionState = awaitState { it.accountProviderInput == "ele" }
             assertThat(suggestionState.accountProviderSuggestion).isEqualTo("element.io")
+        }
+    }
+
+    @Test
+    fun `present - a parent domain that is not forced is neither pre-filled nor suggested`() = runTest {
+        // Family Chat: the allowlist is the parent domain of the family servers, and nothing is forced.
+        val enterpriseService = FakeEnterpriseService(
+            defaultHomeserverListResult = { listOf("safechat.family") },
+            forcedAccountProviderResult = { null },
+        )
+        val presenter = createConfirmAccountProviderPresenter(
+            accountProviderDataSource = anAccountProviderDataSource(enterpriseService = enterpriseService),
+            appPreferencesStore = InMemoryAppPreferencesStore(homeserverHistory = emptyList()),
+            enterpriseService = enterpriseService,
+        )
+        presenter.test {
+            val initialState = awaitItem()
+            assertThat(initialState.accountProviderInput).isEmpty()
+            initialState.eventSink(ConfirmAccountProviderEvent.UserInputChanged("safe"))
+            assertThat(awaitState { it.accountProviderInput == "safe" }.accountProviderSuggestion).isNull()
         }
     }
 

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -25,15 +26,22 @@ class DefaultEnterpriseServiceTest {
     }
 
     @Test
-    fun `isAllowedToConnectToHomeserver accepts the account provider and its subdomains`() = runTest {
+    fun `no account provider is forced, the user enters their family's server`() {
+        val defaultEnterpriseService = DefaultEnterpriseService()
+        assertThat(defaultEnterpriseService.forcedAccountProvider()).isNull()
+    }
+
+    @Test
+    fun `isAllowedToConnectToHomeserver accepts the family subdomains of the account provider`() = runTest {
         val defaultEnterpriseService = DefaultEnterpriseService()
         listOf(
-            "safechat.family",
-            "SafeChat.Family",
-            "https://safechat.family",
-            "https://safechat.family/",
-            "https://safechat.family:8448/",
+            "smith.safechat.family",
+            "Smith.SafeChat.Family",
             "https://smith.safechat.family",
+            "https://smith.safechat.family/",
+            "https://smith.safechat.family:8448",
+            "https://smith.safechat.family:8448/",
+            " https://matrix.smith.safechat.family ",
         ).forEach {
             assertThat(defaultEnterpriseService.isAllowedToConnectToHomeserver(it)).isTrue()
         }
@@ -45,9 +53,39 @@ class DefaultEnterpriseServiceTest {
         listOf(
             A_HOMESERVER_URL,
             "matrix.org",
+            // The apex serves the website, not a homeserver
+            "safechat.family",
+            "https://safechat.family",
+            "https://safechat.family/",
             "https://safechat.family.evil.example",
             "https://evilsafechat.family",
             "",
+        ).forEach {
+            assertThat(defaultEnterpriseService.isAllowedToConnectToHomeserver(it)).isFalse()
+        }
+    }
+
+    @Test
+    fun `isAllowedToConnectToHomeserver rejects anything that is not a bare host, whatever it ends with`() = runTest {
+        val defaultEnterpriseService = DefaultEnterpriseService()
+        listOf(
+            // The real host of each of these is evil.com
+            "https://evil.com?.safechat.family",
+            "https://evil.com#.safechat.family",
+            "https://evil.com\\.safechat.family",
+            "https://evil.com/.safechat.family",
+            "https://user@evil.com/x.safechat.family",
+            "evil.com?.safechat.family",
+            // Userinfo, paths, other schemes and malformed hosts
+            "https://ana@smith.safechat.family",
+            "https://smith.safechat.family/path",
+            "https://smith.safechat.family//",
+            "http://smith.safechat.family",
+            "ftp://smith.safechat.family",
+            "https://smith.safechat.family:port",
+            "https://-smith.safechat.family",
+            "https://smith..safechat.family",
+            "https://smith .safechat.family",
         ).forEach {
             assertThat(defaultEnterpriseService.isAllowedToConnectToHomeserver(it)).isFalse()
         }

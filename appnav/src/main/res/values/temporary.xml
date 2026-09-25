@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright 2026 Unicorn Operations Ltd.
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only
+  ~ Please see LICENSE files in the repository root for full details.
+  -->
+<!-- Family Chat strings. Never edit localazy.xml; Localazy sync is disabled for this fork, so these stay here. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="login_link_already_signed_in">"You're already signed in. Sign out first to use this sign-in link."</string>
+</resources>
