@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -41,6 +42,14 @@ interface EnterpriseService {
      * If the list is empty or contains the special value [ANY_ACCOUNT_PROVIDER], the user is allowed to sign in to any homeserver.
      */
     fun homeserverAllowList(): List<String>
+
+    /**
+     * The account provider every sign-in is locked to, or `null` when the user enters one (still restricted by
+     * [isAllowedToConnectToHomeserver]). Upstream this is the single entry of [homeserverAllowList], if any; a
+     * deployment whose single entry is only a parent domain (Family Chat: each family has its own subdomain)
+     * returns `null` so that the account provider entry step is shown.
+     */
+    fun forcedAccountProvider(): String? = homeserverAllowList().singleOrNull()
 
     /**
      * Whether the user is allowed to sign in to a given homeserver, according to [homeserverAllowList].

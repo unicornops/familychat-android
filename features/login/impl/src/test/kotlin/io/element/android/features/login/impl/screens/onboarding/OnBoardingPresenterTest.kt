@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -43,6 +44,8 @@ import io.element.android.libraries.sessionstorage.api.SessionStore
 import io.element.android.libraries.sessionstorage.test.InMemorySessionStore
 import io.element.android.libraries.sessionstorage.test.aSessionData
 import io.element.android.tests.testutils.WarmUpRule
+import io.element.android.tests.testutils.awaitLastSequentialItem
+import io.element.android.tests.testutils.consumeItemsUntilPredicate
 import io.element.android.tests.testutils.test
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -239,6 +242,45 @@ class OnBoardingPresenterTest {
             awaitItem().also {
                 assertThat(it.defaultAccountProvider).isEqualTo(ACCOUNT_PROVIDER_FROM_CONFIG)
                 assertThat(it.canLoginWithQrCode).isTrue()
+                assertThat(it.canCreateAccount).isFalse()
+            }
+        }
+    }
+
+    @Test
+    fun `present - opening the app using link with allowed account provider, and the app forces account provider`() = runTest {
+        val presenter = createPresenter(
+            params = OnBoardingNode.Params(
+                accountProvider = ACCOUNT_PROVIDER_FROM_LINK,
+                loginHint = A_LOGIN_HINT,
+                showBackButton = false,
+            ),
+            enterpriseService = FakeEnterpriseService(
+                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
+                isAllowedToConnectToHomeserverResult = { true },
+                isElementProEnforcedResult = { false },
+            )
+        )
+        presenter.test {
+            // The link's account provider passed the allowlist: it wins over the forced one
+            val state = consumeItemsUntilPredicate { it.defaultAccountProvider == ACCOUNT_PROVIDER_FROM_LINK }.last()
+            assertThat(state.defaultAccountProvider).isEqualTo(ACCOUNT_PROVIDER_FROM_LINK)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - a single allowlist entry that is not forced lets the user enter their server`() = runTest {
+        val presenter = createPresenter(
+            enterpriseService = FakeEnterpriseService(
+                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
+                forcedAccountProviderResult = { null },
+            )
+        )
+        presenter.test {
+            awaitLastSequentialItem().also {
+                assertThat(it.defaultAccountProvider).isNull()
+                assertThat(it.mustChooseAccountProvider).isFalse()
                 assertThat(it.canCreateAccount).isFalse()
             }
         }
