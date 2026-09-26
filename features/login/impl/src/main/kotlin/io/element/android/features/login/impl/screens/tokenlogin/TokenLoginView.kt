@@ -47,9 +47,9 @@ fun TokenLoginView(
             stringResource(R.string.screen_token_login_title)
         },
         subTitle = if (isAwaitingConfirmation) {
-            stringResource(R.string.screen_token_login_confirm_subtitle, state.homeserver)
+            stringResource(R.string.screen_token_login_confirm_subtitle, state.serverName)
         } else {
-            stringResource(R.string.screen_token_login_subtitle, state.homeserver)
+            stringResource(R.string.screen_token_login_subtitle, state.serverName)
         },
         content = {
             if (state.loginAction is AsyncData.Loading || state.loginAction is AsyncData.Success) {

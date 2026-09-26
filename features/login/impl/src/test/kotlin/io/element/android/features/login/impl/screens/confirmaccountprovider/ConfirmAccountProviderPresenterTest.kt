@@ -18,12 +18,15 @@ import io.element.android.features.login.impl.accesscontrol.DefaultAccountProvid
 import io.element.android.features.login.impl.accountprovider.AccountProviderDataSource
 import io.element.android.features.login.impl.accountprovider.anAccountProviderDataSource
 import io.element.android.features.login.impl.changeserver.ChangeServerPresenter
+import io.element.android.features.login.impl.error.ChangeServerError
 import io.element.android.features.login.impl.localnetwork.LocalNetworkPermissionGate
 import io.element.android.features.login.impl.login.LoginMode
 import io.element.android.features.login.impl.screens.createaccount.AccountCreationNotSupported
 import io.element.android.features.login.impl.screens.onboarding.createLoginModePresenter
 import io.element.android.libraries.architecture.AsyncData
+import io.element.android.libraries.matrix.api.auth.AuthenticationException
 import io.element.android.libraries.matrix.api.auth.MatrixAuthenticationService
+import io.element.android.libraries.matrix.api.auth.MatrixHomeServerDetails
 import io.element.android.libraries.matrix.test.AN_EXCEPTION
 import io.element.android.libraries.matrix.test.auth.FakeMatrixAuthenticationService
 import io.element.android.libraries.matrix.test.auth.aMatrixHomeServerDetails
@@ -36,6 +39,9 @@ import io.element.android.libraries.permissions.test.FakePermissionsPresenterFac
 import io.element.android.libraries.preferences.api.store.AppPreferencesStore
 import io.element.android.libraries.preferences.test.InMemoryAppPreferencesStore
 import io.element.android.tests.testutils.WarmUpRule
+import io.element.android.tests.testutils.lambda.lambdaError
+import io.element.android.tests.testutils.lambda.lambdaRecorder
+import io.element.android.tests.testutils.lambda.value
 import io.element.android.tests.testutils.test
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -553,6 +559,93 @@ class ConfirmAccountProviderPresenterTest {
         }
     }
 
+    @Test
+    fun `present - a family's own domain is accepted and signed in to through discovery`() = runTest {
+        val setHomeserverResult = lambdaRecorder<String, Result<MatrixHomeServerDetails>> {
+            // smith.ie's .well-known points at the family's server, which the authentication service accepted
+            Result.success(aMatrixHomeServerDetails(url = "https://smith.safechat.family", supportsPasswordLogin = true))
+        }
+        val presenter = createConfirmAccountProviderPresenter(
+            matrixAuthenticationService = FakeMatrixAuthenticationService(setHomeserverResult = setHomeserverResult),
+            accessControlEnterpriseService = aFamilyChatEnterpriseService(),
+        )
+        presenter.test {
+            awaitItem().eventSink(ConfirmAccountProviderEvent.Continue("smith.ie"))
+            val state = awaitLoginMode { it is AsyncData.Success }
+            assertThat(state.loginModeState.loginMode.dataOrNull()).isEqualTo(LoginMode.PasswordLogin)
+            setHomeserverResult.assertions().isCalledOnce().with(value("https://smith.ie"))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - a full matrix id on a family's own domain is accepted`() = runTest {
+        val setHomeserverResult = lambdaRecorder<String, Result<MatrixHomeServerDetails>> {
+            Result.success(aMatrixHomeServerDetails(url = "https://smith.safechat.family", supportsOAuthLogin = true))
+        }
+        val authenticationService = FakeMatrixAuthenticationService(setHomeserverResult = setHomeserverResult)
+        val presenter = createConfirmAccountProviderPresenter(
+            matrixAuthenticationService = authenticationService,
+            accessControlEnterpriseService = aFamilyChatEnterpriseService(),
+        )
+        presenter.test {
+            awaitItem().eventSink(ConfirmAccountProviderEvent.Continue("@kid:smith.ie"))
+            awaitLoginMode { it is AsyncData.Success }
+            setHomeserverResult.assertions().isCalledOnce().with(value("https://smith.ie"))
+            assertThat(authenticationService.getOAuthUrlLoginHint).isEqualTo("mxid:@kid:smith.ie")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - a domain resolving outside the allowlist is refused as not a Family Chat server`() = runTest {
+        val presenter = createConfirmAccountProviderPresenter(
+            matrixAuthenticationService = FakeMatrixAuthenticationService(
+                setHomeserverResult = { Result.failure(AuthenticationException.HomeserverNotAllowed("https://evil.com/")) },
+            ),
+            accessControlEnterpriseService = aFamilyChatEnterpriseService(),
+        )
+        presenter.test {
+            awaitItem().eventSink(ConfirmAccountProviderEvent.Continue("evil.com"))
+            val state = awaitState { it.changeServerState.changeServerAction is AsyncData.Failure }
+            assertThat(state.changeServerState.changeServerAction.errorOrNull()).isEqualTo(ChangeServerError.HomeserverNotAllowed)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - the old bypass inputs and the apex are refused before any discovery`() = runTest {
+        listOf(
+            "safechat.family",
+            "https://evil.com?.safechat.family",
+            "https://user@evil.com/x.safechat.family",
+            "@kid:evil.com\\.safechat.family",
+        ).forEach { input ->
+            // The default setHomeserver of the fake fails the test if it is ever called
+            val presenter = createConfirmAccountProviderPresenter(
+                matrixAuthenticationService = FakeMatrixAuthenticationService(),
+                accessControlEnterpriseService = aFamilyChatEnterpriseService(),
+            )
+            presenter.test {
+                awaitItem().eventSink(ConfirmAccountProviderEvent.Continue(input))
+                val state = awaitState { it.changeServerState.changeServerAction is AsyncData.Failure }
+                assertThat(state.changeServerState.changeServerAction.errorOrNull())
+                    .isInstanceOf(ChangeServerError.UnauthorizedAccountProvider::class.java)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+    }
+
+    /** The Family Chat rules, as far as the account provider step goes: any bare server name but the apex. */
+    private fun aFamilyChatEnterpriseService() = FakeEnterpriseService(
+        isAllowedToConnectToHomeserverResult = { lambdaError() },
+        isAllowedAccountProviderResult = { url ->
+            val host = url.removePrefix("https://")
+            host != "safechat.family" && host.none { it in "?#\\@/" }
+        },
+        isElementProEnforcedResult = { false },
+    )
+
     /**
      * Awaits until the emitted state's login mode matches [predicate], skipping the intermediate
      * account-provider validation states, and returns that state.
@@ -577,6 +670,10 @@ class ConfirmAccountProviderPresenterTest {
         defaultOAuthActionFlow: OAuthActionFlow = FakeOAuthActionFlow(),
         appPreferencesStore: AppPreferencesStore = InMemoryAppPreferencesStore(),
         enterpriseService: EnterpriseService = FakeEnterpriseService(),
+        accessControlEnterpriseService: EnterpriseService = FakeEnterpriseService(
+            isAllowedToConnectToHomeserverResult = { true },
+            isElementProEnforcedResult = { false },
+        ),
     ) = ConfirmAccountProviderPresenter(
         params = params,
         accountProviderDataSource = accountProviderDataSource,
@@ -590,10 +687,7 @@ class ConfirmAccountProviderPresenterTest {
             authenticationService = matrixAuthenticationService,
             accountProviderDataSource = accountProviderDataSource,
             defaultAccountProviderAccessControl = DefaultAccountProviderAccessControl(
-                enterpriseService = FakeEnterpriseService(
-                    isAllowedToConnectToHomeserverResult = { true },
-                    isElementProEnforcedResult = { false },
-                ),
+                enterpriseService = accessControlEnterpriseService,
                 isEnterpriseBuild = { false },
             ),
             localNetworkPermissionGate = LocalNetworkPermissionGate(

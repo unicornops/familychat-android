@@ -57,7 +57,6 @@ import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.appyx.rememberDelegateTransitionHandler
 import io.element.android.libraries.architecture.createNode
 import io.element.android.libraries.architecture.waitForChildAttached
-import io.element.android.libraries.core.uri.ensureProtocol
 import io.element.android.libraries.deeplink.api.DeeplinkData
 import io.element.android.libraries.designsystem.components.dialogs.AlertDialog
 import io.element.android.libraries.di.annotations.AppCoroutineScope
@@ -425,16 +424,11 @@ class RootFlowNode(
     }
 
     private suspend fun onLoginLink(rawParams: LoginParams) {
-        // A sign-in code is only redeemed against a homeserver we are allowed to connect to; otherwise the
-        // link degrades to the plain account provider + login hint prefill and the token goes nowhere.
-        val hs = rawParams.hs
-        val params = if (hs != null && !accountProviderAccessControl.isAllowedToConnectToAccountProvider("https://$hs")) {
-            Timber.w("Login link: sign-in code ignored, we are not allowed to connect to its homeserver")
-            rawParams.copy(hs = null, signInCodeId = null)
-        } else {
-            rawParams
-        }
-        if (accountProviderAccessControl.isAllowedToConnectToAccountProvider(params.accountProvider.ensureProtocol())) {
+        // The account provider may be a family's own domain, judged on where it resolves before any credentials are
+        // sent; a sign-in code is only kept for an allowed `hs`, else the link degrades to the plain account provider
+        // + login hint prefill and the token goes nowhere. See [sanitize].
+        val params = rawParams.sanitize(accountProviderAccessControl)
+        if (params != null) {
             // Is there a session already?
             val sessions = sessionStore.getAllSessions()
             if (sessions.isNotEmpty()) {
@@ -459,8 +453,6 @@ class RootFlowNode(
                 pendingLoginParams = params
                 switchToNotLoggedInFlow(params)
             }
-        } else {
-            Timber.w("Login link ignored, we are not allowed to connect to the homeserver")
         }
     }
 

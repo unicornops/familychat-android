@@ -174,6 +174,8 @@ class LoginFlowNode(
                 }
                 val inputs = TokenLoginNode.Inputs(
                     hs = hs,
+                    // The family's server name; for a family on its own domain, not the host the code goes to.
+                    accountProvider = params.accountProvider ?: hs,
                     loginHint = params.loginHint,
                     signInCodeId = params.signInCodeId.orEmpty(),
                 )

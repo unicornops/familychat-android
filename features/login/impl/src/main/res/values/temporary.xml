@@ -9,6 +9,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="screen_change_server_textfield_placeholder_family">"yourfamily.safechat.family"</string>
     <string name="screen_change_server_textfield_footer_login_family">"Enter your family's server, as shown in your family's control panel."</string>
+    <string name="screen_change_server_error_not_a_family_chat_server">"This server isn't a Family Chat server"</string>
     <string name="screen_token_login_confirm_title">"Sign in as %1$s?"</string>
     <string name="screen_token_login_confirm_subtitle">"This sign-in code from your family's control panel signs this device in to %1$s. Only continue if you asked for it."</string>
     <string name="screen_token_login_title">"Signing you in"</string>

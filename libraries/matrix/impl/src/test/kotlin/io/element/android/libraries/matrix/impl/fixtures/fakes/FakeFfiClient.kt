@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -68,6 +69,7 @@ class FakeFfiClient(
     private val getUrlResult: (String) -> ByteArray = { lambdaError() },
     private val contentScannerResult: () -> ContentScanner = { FakeFfiContentScanner() },
     private val closeResult: () -> Unit = {},
+    private val loginResult: (username: String, password: String) -> Unit = { _, _ -> lambdaError() },
 ) : Client(NoHandle) {
     override fun userId(): String = userId
     override fun deviceId(): String = deviceId
@@ -80,6 +82,7 @@ class FakeFfiClient(
     override fun setDelegate(delegate: ClientDelegate?): TaskHandle = FakeFfiTaskHandle()
     override suspend fun cachedAvatarUrl(): String? = null
     override suspend fun restoreSession(session: Session) = Unit
+    override suspend fun login(username: String, password: String, initialDeviceName: String?, deviceId: String?) = loginResult(username, password)
     override fun syncService(): SyncServiceBuilder = FakeFfiSyncServiceBuilder()
     override suspend fun spaceService(): SpaceService = FakeFfiSpaceService()
     override fun roomDirectorySearch(): RoomDirectorySearch = FakeFfiRoomDirectorySearch()

@@ -33,7 +33,8 @@ class FakeMatrixAuthenticationService(
     var loginWithQrCodeResult: (qrCodeData: MatrixQrCodeLoginData, progress: (QrCodeLoginStep) -> Unit) -> Result<SessionId> =
         lambdaRecorder<MatrixQrCodeLoginData, (QrCodeLoginStep) -> Unit, Result<SessionId>> { _, _ -> Result.success(A_SESSION_ID) },
     private val setHomeserverResult: (String) -> Result<MatrixHomeServerDetails> = { lambdaError() },
-    var loginWithTokenResult: (homeserverUrl: String, token: String, expectedUserId: String?) -> Result<SessionId> = { _, _, _ -> lambdaError() },
+    var loginWithTokenResult: (homeserverUrl: String, token: String, expectedUserId: String?, accountProvider: String) -> Result<SessionId> =
+        { _, _, _, _ -> lambdaError() },
     private val setElementClassicSessionResult: (ElementClassicSession?) -> Unit = { lambdaError() },
     private val doSecretsContainBackupKeyResult: (UserId, String, String) -> Boolean = { _, _, _ -> lambdaError() },
 ) : MatrixAuthenticationService {
@@ -66,8 +67,13 @@ class FakeMatrixAuthenticationService(
         }
     }
 
-    override suspend fun loginWithToken(homeserverUrl: String, token: String, expectedUserId: String?): Result<SessionId> = simulateLongTask {
-        loginWithTokenResult(homeserverUrl, token, expectedUserId).onSuccess {
+    override suspend fun loginWithToken(
+        homeserverUrl: String,
+        token: String,
+        expectedUserId: String?,
+        accountProvider: String,
+    ): Result<SessionId> = simulateLongTask {
+        loginWithTokenResult(homeserverUrl, token, expectedUserId, accountProvider).onSuccess {
             onAuthenticationListener?.invoke(matrixClient ?: FakeMatrixClient())
         }
     }

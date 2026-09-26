@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -22,7 +23,9 @@ import uniffi.matrix_sdk_crypto.CollectStrategy
 import uniffi.matrix_sdk_crypto.DecryptionSettings
 
 class FakeFfiClientBuilder(
-    val buildResult: () -> Client = { FakeFfiClient(withUtdHook = {}) }
+    // Before [buildResult], so that a trailing lambda still configures the built client.
+    private val serverNameOrHomeserverUrlResult: (String) -> Unit = {},
+    val buildResult: () -> Client = { FakeFfiClient(withUtdHook = {}) },
 ) : ClientBuilder(NoHandle) {
     override fun addRootCertificates(certificates: List<ByteArray>) = this
     override fun autoEnableBackups(autoEnableBackups: Boolean) = this
@@ -37,7 +40,7 @@ class FakeFfiClientBuilder(
     override fun requestConfig(config: RequestConfig) = this
     override fun roomKeyRecipientStrategy(strategy: CollectStrategy) = this
     override fun serverName(serverName: String) = this
-    override fun serverNameOrHomeserverUrl(serverNameOrUrl: String) = this
+    override fun serverNameOrHomeserverUrl(serverNameOrUrl: String) = apply { serverNameOrHomeserverUrlResult(serverNameOrUrl) }
     override fun sessionPaths(dataPath: String, cachePath: String) = this
     override fun setSessionDelegate(sessionDelegate: ClientSessionDelegate) = this
     override fun slidingSyncVersionBuilder(versionBuilder: SlidingSyncVersionBuilder) = this

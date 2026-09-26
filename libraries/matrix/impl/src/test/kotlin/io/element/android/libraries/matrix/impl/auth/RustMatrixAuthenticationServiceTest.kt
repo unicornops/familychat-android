@@ -13,6 +13,8 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.features.enterprise.test.FakeEnterpriseService
 import io.element.android.libraries.featureflag.test.FakeFeatureFlagService
+import io.element.android.libraries.matrix.api.auth.AuthenticationException
+import io.element.android.libraries.matrix.api.auth.OAuthPrompt
 import io.element.android.libraries.matrix.api.auth.SignInCodeException
 import io.element.android.libraries.matrix.impl.ClientBuilderProvider
 import io.element.android.libraries.matrix.impl.FakeClientBuilderProvider
@@ -53,6 +55,7 @@ class RustMatrixAuthenticationServiceTest {
                     FakeFfiClientBuilder(
                         buildResult = {
                             FakeFfiClient(
+                                homeserver = A_FAMILY_HOMESERVER_URL,
                                 homeserverLoginDetailsResult = {
                                     FakeFfiHomeserverLoginDetails()
                                 }
@@ -62,7 +65,7 @@ class RustMatrixAuthenticationServiceTest {
                 }
             ),
         )
-        assertThat(sut.setHomeserver("matrix.org").isSuccess).isTrue()
+        assertThat(sut.setHomeserver("smith.safechat.family").isSuccess).isTrue()
     }
 
     @Test
@@ -74,6 +77,7 @@ class RustMatrixAuthenticationServiceTest {
                     FakeFfiClientBuilder(
                         buildResult = {
                             FakeFfiClient(
+                                homeserver = A_FAMILY_HOMESERVER_URL,
                                 homeserverLoginDetailsResult = {
                                     throw IllegalStateException("Failed to get homeserver login details")
                                 },
@@ -84,8 +88,92 @@ class RustMatrixAuthenticationServiceTest {
                 },
             ),
         )
-        assertThat(sut.setHomeserver("matrix.org").isFailure).isTrue()
+        assertThat(sut.setHomeserver("smith.safechat.family").isFailure).isTrue()
         closeResult.assertions().isCalledOnce()
+    }
+
+    @Test
+    fun `setHomeserver accepts a family's own domain whose well-known resolves to a family server`() = runTest {
+        val serverNameOrHomeserverUrlResult = lambdaRecorder<String, Unit> { }
+        val loginResult = lambdaRecorder<String, String, Unit> { _, _ -> }
+        val sut = createRustMatrixAuthenticationService(
+            clientBuilderProvider = FakeClientBuilderProvider(
+                provideResult = {
+                    FakeFfiClientBuilder(
+                        buildResult = {
+                            FakeFfiClient(
+                                // What discovery of smith.ie resolved to
+                                homeserver = "https://smith-m1.safechat.family/",
+                                homeserverLoginDetailsResult = { FakeFfiHomeserverLoginDetails() },
+                                loginResult = loginResult,
+                                withUtdHook = {},
+                            )
+                        },
+                        serverNameOrHomeserverUrlResult = serverNameOrHomeserverUrlResult,
+                    )
+                }
+            ),
+            sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> }),
+        )
+
+        assertThat(sut.setHomeserver("smith.ie").isSuccess).isTrue()
+        serverNameOrHomeserverUrlResult.assertions().isCalledOnce().with(value("smith.ie"))
+
+        // The typed full Matrix ID on the family's own domain signs in on the resolved server
+        assertThat(sut.login("@kid:smith.ie", "a password").isSuccess).isTrue()
+        loginResult.assertions().isCalledOnce().with(value("@kid:smith.ie"), value("a password"))
+    }
+
+    @Test
+    fun `setHomeserver refuses a domain resolving outside the allowlist, and no password is ever sent to it`() = runTest {
+        val closeResult = lambdaRecorder<Unit> {}
+        val loginResult = lambdaRecorder<String, String, Unit> { _, _ -> }
+        val sut = createRustMatrixAuthenticationService(
+            clientBuilderProvider = FakeClientBuilderProvider(
+                provideResult = {
+                    FakeFfiClientBuilder(
+                        buildResult = {
+                            FakeFfiClient(
+                                // evil.com has no .well-known, or one pointing at itself
+                                homeserver = "https://evil.com/",
+                                // Not even the login flows are asked for
+                                homeserverLoginDetailsResult = { lambdaError() },
+                                loginResult = loginResult,
+                                closeResult = closeResult,
+                            )
+                        },
+                    )
+                }
+            ),
+        )
+
+        val result = sut.setHomeserver("evil.com")
+
+        val error = result.exceptionOrNull()
+        assertThat(error).isInstanceOf(AuthenticationException.HomeserverNotAllowed::class.java)
+        assertThat((error as AuthenticationException.HomeserverNotAllowed).homeserverUrl).isEqualTo("https://evil.com/")
+        closeResult.assertions().isCalledOnce()
+        // The refused client is gone: a password login has nothing to go through
+        assertThat(sut.login("@kid:evil.com", "a password").isFailure).isTrue()
+        assertThat(sut.getOAuthUrl(prompt = OAuthPrompt.Login, loginHint = null).isFailure).isTrue()
+        loginResult.assertions().isNeverCalled()
+    }
+
+    @Test
+    fun `setHomeserver refuses a family server resolved over plain http`() = runTest {
+        val sut = createRustMatrixAuthenticationService(
+            clientBuilderProvider = FakeClientBuilderProvider(
+                provideResult = {
+                    FakeFfiClientBuilder(
+                        buildResult = {
+                            FakeFfiClient(homeserver = "http://smith.safechat.family/", homeserverLoginDetailsResult = { lambdaError() })
+                        },
+                    )
+                }
+            ),
+        )
+
+        assertThat(sut.setHomeserver("smith.ie").exceptionOrNull()).isInstanceOf(AuthenticationException.HomeserverNotAllowed::class.java)
     }
 
     @Test
@@ -99,7 +187,12 @@ class RustMatrixAuthenticationServiceTest {
             loginTokenExchanger = FakeLoginTokenExchanger(exchangeResult, logoutResult),
         )
 
-        val result = sut.loginWithToken(homeserverUrl = "https://smith.safechat.family", token = "syl_token", expectedUserId = A_USER_ID.value)
+        val result = sut.loginWithToken(
+            homeserverUrl = "https://smith.safechat.family",
+            token = "syl_token",
+            expectedUserId = A_USER_ID.value,
+            accountProvider = "smith.safechat.family",
+        )
 
         assertThat(result.getOrNull()).isEqualTo(A_SESSION_ID)
         exchangeResult.assertions().isCalledOnce().with(value("https://smith.safechat.family"), value("syl_token"), any())
@@ -125,7 +218,12 @@ class RustMatrixAuthenticationServiceTest {
             ),
         )
 
-        val result = sut.loginWithToken(homeserverUrl = "https://smith.safechat.family", token = "syl_token", expectedUserId = null)
+        val result = sut.loginWithToken(
+            homeserverUrl = "https://smith.safechat.family",
+            token = "syl_token",
+            expectedUserId = null,
+            accountProvider = "smith.safechat.family",
+        )
 
         assertThat(result.exceptionOrNull()).isInstanceOf(SignInCodeException.Rejected::class.java)
         assertThat(sessionStore.getAllSessions()).isEmpty()
@@ -152,12 +250,79 @@ class RustMatrixAuthenticationServiceTest {
             homeserverUrl = "https://smith.safechat.family",
             token = "syl_token",
             expectedUserId = "@someone_else:smith.safechat.family",
+            accountProvider = "smith.safechat.family",
         )
 
         assertThat(result.exceptionOrNull()).isInstanceOf(SignInCodeException.UserMismatch::class.java)
         assertThat(sessionStore.getAllSessions()).isEmpty()
         closeResult.assertions().isCalledOnce()
         logoutResult.assertions().isCalledOnce().with(value("https://smith.safechat.family"), value("syt_access"))
+    }
+
+    @Test
+    fun `loginWithToken for a family on its own domain redeems against hs and accepts the account on the domain`() = runTest {
+        listOf("@kid:smith.ie", null).forEach { expectedUserId ->
+            val exchangeResult = lambdaRecorder<String, String, String, LoginTokenCredentials> { _, _, _ ->
+                aLoginTokenCredentials(userId = "@kid:smith.ie")
+            }
+            val sut = createRustMatrixAuthenticationService(
+                sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> }),
+                clientBuilderProvider = aClientBuilderProvider(),
+                loginTokenExchanger = FakeLoginTokenExchanger(exchangeResult = exchangeResult),
+            )
+
+            val result = sut.loginWithToken(
+                homeserverUrl = "https://smith-m1.safechat.family",
+                token = "syl_token",
+                expectedUserId = expectedUserId,
+                accountProvider = "smith.ie",
+            )
+
+            assertThat(result.isSuccess).isTrue()
+            exchangeResult.assertions().isCalledOnce().with(value("https://smith-m1.safechat.family"), value("syl_token"), any())
+        }
+    }
+
+    @Test
+    fun `loginWithToken without a login hint refuses an account on another server than the account provider`() = runTest {
+        listOf("@kid:evil.com", "@kid:smith-m1.safechat.family", "@kid:smith.ie.evil.com").forEach { userId ->
+            val logoutResult = lambdaRecorder<String, String, Unit> { _, _ -> }
+            val sessionStore = InMemorySessionStore()
+            val sut = createRustMatrixAuthenticationService(
+                sessionStore = sessionStore,
+                clientBuilderProvider = aClientBuilderProvider(),
+                loginTokenExchanger = FakeLoginTokenExchanger(
+                    exchangeResult = { _, _, _ -> aLoginTokenCredentials(userId = userId) },
+                    logoutResult = logoutResult,
+                ),
+            )
+
+            val result = sut.loginWithToken(
+                homeserverUrl = "https://smith-m1.safechat.family",
+                token = "syl_token",
+                expectedUserId = null,
+                accountProvider = "smith.ie",
+            )
+
+            assertThat(result.exceptionOrNull()).isInstanceOf(SignInCodeException.UserMismatch::class.java)
+            assertThat(sessionStore.getAllSessions()).isEmpty()
+            logoutResult.assertions().isCalledOnce().with(value("https://smith-m1.safechat.family"), value("syt_access"))
+        }
+    }
+
+    @Test
+    fun `loginWithToken never sends the code to a homeserver outside the allowlist`() = runTest {
+        listOf("https://smith.ie", "http://smith.safechat.family", "https://safechat.family").forEach { homeserverUrl ->
+            val sut = createRustMatrixAuthenticationService(
+                clientBuilderProvider = aClientBuilderProvider(),
+                // The default exchange fails the test if the code is ever sent
+                loginTokenExchanger = FakeLoginTokenExchanger(),
+            )
+
+            val result = sut.loginWithToken(homeserverUrl = homeserverUrl, token = "syl_token", expectedUserId = null, accountProvider = "smith.ie")
+
+            assertThat(result.exceptionOrNull()).isInstanceOf(SignInCodeException.HomeserverNotAllowed::class.java)
+        }
     }
 
     @Test
@@ -180,7 +345,12 @@ class RustMatrixAuthenticationServiceTest {
         )
 
         val caller = launch {
-            sut.loginWithToken(homeserverUrl = "https://smith.safechat.family", token = "syl_token", expectedUserId = null)
+            sut.loginWithToken(
+                homeserverUrl = "https://smith.safechat.family",
+                token = "syl_token",
+                expectedUserId = null,
+                accountProvider = "server.org",
+            )
         }
         exchangeStarted.await()
         caller.cancelAndJoin()
@@ -194,7 +364,12 @@ class RustMatrixAuthenticationServiceTest {
     private fun TestScope.createRustMatrixAuthenticationService(
         sessionStore: SessionStore = InMemorySessionStore(),
         clientBuilderProvider: ClientBuilderProvider = FakeClientBuilderProvider(),
-        enterpriseService: EnterpriseService = FakeEnterpriseService(),
+        enterpriseService: EnterpriseService = FakeEnterpriseService(
+            // The Family Chat rule for a resolved homeserver: https, and a family subdomain of safechat.family
+            isAllowedResolvedHomeserverUrlResult = { url ->
+                url.startsWith("https://") && url.removePrefix("https://").removeSuffix("/").endsWith(".safechat.family")
+            },
+        ),
         loginTokenExchanger: LoginTokenExchanger = FakeLoginTokenExchanger(),
     ): RustMatrixAuthenticationService {
         val baseDirectory = File("/base")
@@ -225,8 +400,10 @@ class RustMatrixAuthenticationServiceTest {
     }
 }
 
-private fun aLoginTokenCredentials() = LoginTokenCredentials(
-    userId = A_USER_ID.value,
+private const val A_FAMILY_HOMESERVER_URL = "https://smith.safechat.family/"
+
+private fun aLoginTokenCredentials(userId: String = A_USER_ID.value) = LoginTokenCredentials(
+    userId = userId,
     accessToken = "syt_access",
     deviceId = A_DEVICE_ID.value,
     refreshToken = null,

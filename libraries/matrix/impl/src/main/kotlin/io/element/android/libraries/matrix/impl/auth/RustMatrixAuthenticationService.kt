@@ -32,6 +32,7 @@ import io.element.android.libraries.matrix.api.auth.SessionRestorationException
 import io.element.android.libraries.matrix.api.auth.SignInCodeException
 import io.element.android.libraries.matrix.api.auth.qrlogin.MatrixQrCodeLoginData
 import io.element.android.libraries.matrix.api.auth.qrlogin.QrCodeLoginStep
+import io.element.android.libraries.matrix.api.auth.qrlogin.QrLoginException
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.paths.SessionPaths
@@ -144,11 +145,17 @@ class RustMatrixAuthenticationService(
         withContext(coroutineDispatchers.io) {
             val emptySessionPath = rotateSessionPath()
             runCatchingExceptions {
+                // Resolves a server name through `.well-known` discovery: a family's own domain (e.g. `smith.ie`)
+                // becomes the family's server (`https://<family>.safechat.family`).
                 val client = makeClient(sessionPaths = emptySessionPath) {
                     serverNameOrHomeserverUrl(homeserver)
                 }
 
                 currentClient = client
+
+                // Family Chat: judge the homeserver it resolved to, not the name that was entered, before asking it
+                // anything else. The failure path below closes the client, so no login can go through it.
+                client.ensureAllowedHomeserver()
 
                 client.homeserverLoginDetails().map()
             }.onFailure {
@@ -164,6 +171,8 @@ class RustMatrixAuthenticationService(
             runCatchingExceptions {
                 val client = currentClient ?: error("You need to call `setHomeserver()` first")
                 val currentSessionPaths = sessionPaths ?: error("You need to call `setHomeserver()` first")
+                // Never send a password to a homeserver outside the allowlist; setHomeserver() already refused it.
+                client.ensureAllowedHomeserver()
                 client.login(
                     username = username,
                     password = password,
@@ -198,25 +207,45 @@ class RustMatrixAuthenticationService(
             }
         }
 
-    override suspend fun loginWithToken(homeserverUrl: String, token: String, expectedUserId: String?): Result<SessionId> {
+    override suspend fun loginWithToken(
+        homeserverUrl: String,
+        token: String,
+        expectedUserId: String?,
+        accountProvider: String,
+    ): Result<SessionId> {
         // The server consumes the code as soon as it receives it. Run the redemption in the application scope so
         // that a caller going away (the screen left, the activity recreated) does not abandon a half-made session,
         // and one at a time so that a second link cannot interleave with the first.
         val redemption = appCoroutineScope.async(coroutineDispatchers.io) {
             tokenLoginMutex.withLock {
-                redeemLoginToken(homeserverUrl = homeserverUrl, token = token, expectedUserId = expectedUserId)
+                redeemLoginToken(
+                    homeserverUrl = homeserverUrl,
+                    token = token,
+                    expectedUserId = expectedUserId,
+                    accountProvider = accountProvider,
+                )
             }
         }
         return redemption.await()
     }
 
-    private suspend fun redeemLoginToken(homeserverUrl: String, token: String, expectedUserId: String?): Result<SessionId> {
+    private suspend fun redeemLoginToken(
+        homeserverUrl: String,
+        token: String,
+        expectedUserId: String?,
+        accountProvider: String,
+    ): Result<SessionId> {
         // Its own session paths and client, not the shared ones used by the other login flows: a password login
         // started meanwhile must not delete this session's directory, nor this one close that login's client.
         val tokenSessionPaths = sessionPathsFactory.create()
         var client: Client? = null
         var credentials: LoginTokenCredentials? = null
         return runCatchingExceptions {
+            // The code is sent to this host as it is, without discovery: it must be an allowed homeserver itself.
+            if (!enterpriseService.isAllowedResolvedHomeserverUrl(homeserverUrl)) {
+                Timber.w("Sign-in code refused: its homeserver is outside the allowlist")
+                throw SignInCodeException.HomeserverNotAllowed()
+            }
             val newClient = makeClient(sessionPaths = tokenSessionPaths) {
                 homeserverUrl(homeserverUrl)
             }
@@ -229,8 +258,10 @@ class RustMatrixAuthenticationService(
                 initialDeviceDisplayName = INITIAL_DEVICE_NAME,
             )
             credentials = newCredentials
-            // Login CSRF: a code for someone else's account must not sign this device into it.
-            if (expectedUserId != null && newCredentials.userId != expectedUserId) {
+            // Login CSRF: a code for someone else's account must not sign this device into it. With no Matrix ID
+            // named, the account must at least belong to the link's account provider: for a family on its own
+            // domain that is the domain (`@kid:smith.ie`), not the host the code was redeemed against.
+            if (!isExpectedTokenLoginUser(userId = newCredentials.userId, expectedUserId = expectedUserId, accountProvider = accountProvider)) {
                 Timber.w("Sign-in code redeemed for another account than the link named")
                 throw SignInCodeException.UserMismatch()
             }
@@ -279,6 +310,20 @@ class RustMatrixAuthenticationService(
             // The failure never carries the token; the exchanger only reports HTTP status and errcode.
             Timber.e(failure, "Failed to login with a sign-in code")
             failure as? SignInCodeException ?: failure.mapAuthenticationException()
+        }
+    }
+
+    /**
+     * Family Chat: the single backstop every password and OAuth login goes through. The homeserver the client
+     * resolved to (after `.well-known` discovery of what the user typed or a link named) must be allowed, see
+     * [EnterpriseService.isAllowedResolvedHomeserverUrl]; otherwise no credentials are sent to it.
+     */
+    @Throws(AuthenticationException.HomeserverNotAllowed::class)
+    private suspend fun Client.ensureAllowedHomeserver() {
+        val resolvedHomeserverUrl = homeserver()
+        if (!enterpriseService.isAllowedResolvedHomeserverUrl(resolvedHomeserverUrl)) {
+            Timber.w("Refusing to sign in: the server resolved to a homeserver outside the allowlist ($resolvedHomeserverUrl)")
+            throw AuthenticationException.HomeserverNotAllowed(resolvedHomeserverUrl)
         }
     }
 
@@ -338,6 +383,7 @@ class RustMatrixAuthenticationService(
         return withContext(coroutineDispatchers.io) {
             runCatchingExceptions {
                 val client = currentClient ?: error("You need to call `setHomeserver()` first")
+                client.ensureAllowedHomeserver()
                 val oAuthAuthorizationData = client.urlForOauth(
                     oauthConfiguration = oAuthConfigurationProvider.get(),
                     prompt = prompt.toRustPrompt(),
@@ -389,6 +435,7 @@ class RustMatrixAuthenticationService(
             runCatchingExceptions {
                 val client = currentClient ?: error("You need to call `setHomeserver()` first")
                 val currentSessionPaths = sessionPaths ?: error("You need to call `setHomeserver()` first")
+                client.ensureAllowedHomeserver()
                 client.loginWithOauthCallback(
                     callbackUrl = callbackUrl,
                 )
@@ -456,6 +503,12 @@ class RustMatrixAuthenticationService(
                     sessionPaths = emptySessionPaths,
                     qrCodeData = sdkQrCodeLoginData,
                 )
+                // The QR code names the server; it is held to the same allowlist as a typed one.
+                if (!enterpriseService.isAllowedResolvedHomeserverUrl(client.homeserver())) {
+                    Timber.w("QR code login refused: its homeserver is outside the allowlist")
+                    client.close()
+                    throw QrLoginException.Unknown
+                }
                 client.newLoginWithQrCodeHandler(
                     oauthConfiguration = oAuthConfiguration,
                 ).use {
@@ -569,4 +622,14 @@ class RustMatrixAuthenticationService(
     companion object {
         private const val INITIAL_DEVICE_NAME = "Family Chat Android"
     }
+}
+
+/**
+ * Whether a sign-in code signed in the account the link was for: the Matrix ID it named, or with none, an account
+ * on its account provider (`@kid:smith.ie` for a link with `account_provider=smith.ie`).
+ */
+internal fun isExpectedTokenLoginUser(userId: String, expectedUserId: String?, accountProvider: String): Boolean {
+    if (expectedUserId != null) return userId == expectedUserId
+    val serverName = accountProvider.trim().removePrefix("https://").removeSuffix("/")
+    return serverName.isNotEmpty() && userId.substringAfter(':', missingDelimiterValue = "").equals(serverName, ignoreCase = true)
 }

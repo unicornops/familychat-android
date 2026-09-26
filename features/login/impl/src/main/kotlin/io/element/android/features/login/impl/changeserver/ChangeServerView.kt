@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -95,6 +96,15 @@ fun ChangeServerView(
                         onDismiss = {
                             eventSink.invoke(ChangeServerEvent.ClearError)
                         },
+                    )
+                }
+                is ChangeServerError.HomeserverNotAllowed -> {
+                    ErrorDialog(
+                        modifier = modifier,
+                        content = stringResource(R.string.screen_change_server_error_not_a_family_chat_server),
+                        onSubmit = {
+                            eventSink.invoke(ChangeServerEvent.ClearError)
+                        }
                     )
                 }
                 is ChangeServerError.UnauthorizedAccountProvider -> {

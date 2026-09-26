@@ -19,11 +19,14 @@ import io.element.android.features.login.impl.accesscontrol.DefaultAccountProvid
 import io.element.android.features.login.impl.accountprovider.AccountProviderDataSource
 import io.element.android.features.login.impl.accountprovider.SaveAccountProviderToHistory
 import io.element.android.features.login.impl.accountprovider.anAccountProviderDataSource
+import io.element.android.features.login.impl.error.ChangeServerError
 import io.element.android.features.login.impl.localnetwork.LocalNetworkPermissionGate
 import io.element.android.features.login.impl.login.LoginModePresenter
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.core.meta.BuildMeta
+import io.element.android.libraries.matrix.api.auth.AuthenticationException
 import io.element.android.libraries.matrix.api.auth.MatrixAuthenticationService
+import io.element.android.libraries.matrix.api.auth.MatrixHomeServerDetails
 import io.element.android.libraries.matrix.test.AN_ACCOUNT_PROVIDER
 import io.element.android.libraries.matrix.test.AN_ACCOUNT_PROVIDER_2
 import io.element.android.libraries.matrix.test.AN_ACCOUNT_PROVIDER_3
@@ -46,6 +49,8 @@ import io.element.android.libraries.sessionstorage.test.aSessionData
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.awaitLastSequentialItem
 import io.element.android.tests.testutils.consumeItemsUntilPredicate
+import io.element.android.tests.testutils.lambda.lambdaRecorder
+import io.element.android.tests.testutils.lambda.value
 import io.element.android.tests.testutils.test
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -266,6 +271,65 @@ class OnBoardingPresenterTest {
             val state = consumeItemsUntilPredicate { it.defaultAccountProvider == ACCOUNT_PROVIDER_FROM_LINK }.last()
             assertThat(state.defaultAccountProvider).isEqualTo(ACCOUNT_PROVIDER_FROM_LINK)
             cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - a link for a family on its own domain signs in through discovery of that domain`() = runTest {
+        val setHomeserverResult = lambdaRecorder<String, Result<MatrixHomeServerDetails>> {
+            // smith.ie resolved to a homeserver outside the allowlist: the backstop refused it before any login
+            Result.failure(AuthenticationException.HomeserverNotAllowed("https://smith.ie/"))
+        }
+        val presenter = createPresenter(
+            params = OnBoardingNode.Params(
+                accountProvider = "smith.ie",
+                loginHint = "mxid:@kid:smith.ie",
+                showBackButton = false,
+            ),
+            enterpriseService = FakeEnterpriseService(
+                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
+                forcedAccountProviderResult = { null },
+                // Not a family homeserver itself, but a well-formed server name: judged on where it resolves
+                isAllowedToConnectToHomeserverResult = { false },
+                isAllowedAccountProviderResult = { it == "smith.ie" },
+                isElementProEnforcedResult = { false },
+            ),
+            loginModePresenter = createLoginModePresenter(
+                authenticationService = FakeMatrixAuthenticationService(setHomeserverResult = setHomeserverResult),
+            ),
+        )
+        presenter.test {
+            // The family's own domain is used as the link's account provider, as for any family server
+            val state = consumeItemsUntilPredicate { it.defaultAccountProvider == "smith.ie" && !it.canLoginWithQrCode }.last()
+            state.eventSink(OnBoardingEvent.OnSignIn("smith.ie"))
+            val failure = consumeItemsUntilPredicate { it.loginModeState.loginMode is AsyncData.Failure }.last()
+            assertThat(failure.loginModeState.loginMode.errorOrNull()).isEqualTo(ChangeServerError.HomeserverNotAllowed)
+            setHomeserverResult.assertions().isCalledOnce().with(value("smith.ie"))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - a link whose account provider is the safechat_family apex is not used`() = runTest {
+        val presenter = createPresenter(
+            params = OnBoardingNode.Params(
+                accountProvider = "safechat.family",
+                loginHint = null,
+                showBackButton = false,
+            ),
+            enterpriseService = FakeEnterpriseService(
+                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
+                forcedAccountProviderResult = { null },
+                isAllowedToConnectToHomeserverResult = { false },
+                isAllowedAccountProviderResult = { false },
+                isElementProEnforcedResult = { false },
+            ),
+        )
+        presenter.test {
+            awaitLastSequentialItem().also {
+                assertThat(it.defaultAccountProvider).isNull()
+                assertThat(it.canLoginWithQrCode).isTrue()
+            }
         }
     }
 

@@ -28,12 +28,12 @@ open class TokenLoginStatePreviewParam : PreviewParameterProvider<TokenLoginStat
 }
 
 fun aTokenLoginState(
-    homeserver: String = "smith.safechat.family",
+    serverName: String = "smith.safechat.family",
     userId: String? = "@ana:smith.safechat.family",
     loginAction: AsyncData<SessionId> = AsyncData.Uninitialized,
     eventSink: (TokenLoginEvent) -> Unit = {},
 ) = TokenLoginState(
-    homeserver = homeserver,
+    serverName = serverName,
     userId = userId,
     loginAction = loginAction,
     eventSink = eventSink,

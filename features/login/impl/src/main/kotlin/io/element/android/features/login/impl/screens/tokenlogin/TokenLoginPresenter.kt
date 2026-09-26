@@ -46,6 +46,11 @@ class TokenLoginPresenter(
     data class Params(
         /** Bare host (optionally `:port`) answering the client-server API; the code is redeemed against `https://<hs>`. */
         val hs: String,
+        /**
+         * The link's `account_provider`: the family's server name. It differs from [hs] for a family on its own
+         * domain; with no login hint, the code must sign into an account on it.
+         */
+        val accountProvider: String,
         /** The link's `login_hint`, `mxid:<Matrix ID>`. */
         val loginHint: String?,
         /** Names the code in [SignInCodeStore]. */
@@ -89,7 +94,7 @@ class TokenLoginPresenter(
         }
 
         return TokenLoginState(
-            homeserver = params.hs,
+            serverName = params.accountProvider,
             userId = expectedUserId,
             loginAction = loginAction.value,
             eventSink = ::handleEvent,
@@ -103,12 +108,17 @@ class TokenLoginPresenter(
         // `hs` is a validated bare host (see DefaultLoginIntentResolver): always https, never ensureProtocol(),
         // which leaves a host starting with "http" alone.
         val homeserverUrl = "https://${params.hs}"
-        if (!accountProviderAccessControl.isAllowedToConnectToAccountProvider(homeserverUrl)) {
+        if (!accountProviderAccessControl.isAllowedToConnectToHomeserver(homeserverUrl)) {
             // Defence in depth: the root flow already strips codes for disallowed hosts.
             Timber.w("Sign-in code refused: not allowed to connect to its homeserver")
             return Result.failure(SignInCodeException.HomeserverNotAllowed())
         }
         // The authentication service completes the redemption even if this screen goes away meanwhile.
-        return authenticationService.loginWithToken(homeserverUrl = homeserverUrl, token = token, expectedUserId = expectedUserId)
+        return authenticationService.loginWithToken(
+            homeserverUrl = homeserverUrl,
+            token = token,
+            expectedUserId = expectedUserId,
+            accountProvider = params.accountProvider,
+        )
     }
 }

@@ -19,7 +19,10 @@ sealed class SignInCodeException(message: String) : Exception(message) {
     /** The homeserver answered something else than a login (another status, a redirect, an unreadable body). */
     class Failed(val httpStatus: Int?, val errcode: String?) : SignInCodeException("HTTP ${httpStatus ?: "-"} ${errcode.orEmpty()}")
 
-    /** The code signed into another account than the one the link named; the new device was signed out again. */
+    /**
+     * The code signed into another account than the link was for (the Matrix ID of its login hint, or with none, an
+     * account on its account provider); the new device was signed out again.
+     */
     class UserMismatch : SignInCodeException("The sign-in code is for another account than the link named")
 
     /** The link's homeserver is not one this app may connect to; the code was not sent anywhere. */

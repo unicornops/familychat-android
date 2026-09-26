@@ -45,7 +45,7 @@ interface EnterpriseService {
 
     /**
      * The account provider every sign-in is locked to, or `null` when the user enters one (still restricted by
-     * [isAllowedToConnectToHomeserver]). Upstream this is the single entry of [homeserverAllowList], if any; a
+     * [isAllowedAccountProvider] and [isAllowedResolvedHomeserverUrl]). Upstream this is the single entry of [homeserverAllowList], if any; a
      * deployment whose single entry is only a parent domain (Family Chat: each family has its own subdomain)
      * returns `null` so that the account provider entry step is shown.
      */
@@ -54,9 +54,33 @@ interface EnterpriseService {
     /**
      * Whether the user is allowed to sign in to a given homeserver, according to [homeserverAllowList].
      *
+     * This judges a homeserver the app talks to directly, without `.well-known` discovery: a URL resolved by
+     * discovery, or a host a sign-in link names to redeem its code against. A server name the user types or a
+     * link names as its account provider is judged by [isAllowedAccountProvider] instead.
+     *
      * @param homeserverUrl the server the user is trying to use.
      */
     suspend fun isAllowedToConnectToHomeserver(homeserverUrl: String): Boolean
+
+    /**
+     * Whether the user may start signing in with this account provider (a server name, typed or from a link),
+     * before `.well-known` discovery has told where its homeserver is. Upstream this is the same check as
+     * [isAllowedToConnectToHomeserver].
+     *
+     * Family Chat accepts any well-formed server name here, a family's own domain included: what is judged
+     * against the allowlist is where it resolves to, see [isAllowedResolvedHomeserverUrl].
+     *
+     * @param accountProvider the server name, optionally prefixed with `https://`.
+     */
+    suspend fun isAllowedAccountProvider(accountProvider: String): Boolean = isAllowedToConnectToHomeserver(accountProvider)
+
+    /**
+     * Whether the homeserver URL an account provider resolved to (after `.well-known` discovery) may be used.
+     * No credentials are sent to a homeserver for which this is `false`. Upstream there is no such restriction.
+     *
+     * @param homeserverUrl the resolved homeserver URL, with its scheme.
+     */
+    suspend fun isAllowedResolvedHomeserverUrl(homeserverUrl: String): Boolean = true
 
     /**
      * Whether the given homeserver enforces the use of Element Pro or a derived app.

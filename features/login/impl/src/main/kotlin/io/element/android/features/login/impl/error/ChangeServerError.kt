@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -26,6 +27,9 @@ sealed class ChangeServerError : Exception() {
         val authorisedAccountProviderTitles: List<String>,
     ) : ChangeServerError()
 
+    /** Family Chat: the server name resolved to a homeserver outside the allowlist; nothing was sent to it. */
+    data object HomeserverNotAllowed : ChangeServerError()
+
     data object SlidingSyncAlert : ChangeServerError()
     data object InvalidServer : ChangeServerError()
     data object UnsupportedServer : ChangeServerError()
@@ -42,6 +46,7 @@ sealed class ChangeServerError : Exception() {
                     is AuthenticationException.AccountAlreadyLoggedIn -> Error(messageStr = error.message)
                     is AuthenticationException.Generic -> Error(messageStr = error.message)
                     is AuthenticationException.OAuth -> Error(messageStr = error.message)
+                    is AuthenticationException.HomeserverNotAllowed -> HomeserverNotAllowed
                 }
             }
             is AccountProviderAccessException.NeedElementProException -> NeedElementPro(
