@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2022-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -10,6 +11,7 @@ package io.element.android.x
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.ActionMode
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -21,7 +23,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -34,6 +35,7 @@ import io.element.android.features.lockscreen.api.LockScreenEntryPoint
 import io.element.android.features.lockscreen.api.LockScreenLockState
 import io.element.android.features.lockscreen.api.LockScreenService
 import io.element.android.features.lockscreen.api.handleSecureFlag
+import io.element.android.libraries.androidutils.text.hideItemsThatLeaveTheApp
 import io.element.android.libraries.architecture.appyx.DebugNavStateNodeHost
 import io.element.android.libraries.architecture.bindings
 import io.element.android.libraries.core.log.logger.LoggerTag
@@ -41,7 +43,6 @@ import io.element.android.libraries.designsystem.theme.ElementThemeApp
 import io.element.android.libraries.designsystem.utils.snackbar.LocalSnackbarDispatcher
 import io.element.android.services.analytics.compose.LocalAnalyticsService
 import io.element.android.x.di.AppBindings
-import io.element.android.x.intent.SafeUriHandler
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -70,6 +71,13 @@ class MainActivity : NodeActivity() {
         }
     }
 
+    override fun onActionModeStarted(mode: ActionMode) {
+        super.onActionModeStarted(mode)
+        // Family Chat (parental gate): last line of defence for text selection toolbars in this window, whatever view
+        // started them. No "Search", "Translate" or smart link actions: they leave the app without the gate.
+        mode.menu.hideItemsThatLeaveTheApp()
+    }
+
     @Composable
     private fun MainContent(appBindings: AppBindings) {
         val migrationState = appBindings.migrationEntryPoint().present()
@@ -85,7 +93,6 @@ class MainActivity : NodeActivity() {
         ) {
             CompositionLocalProvider(
                 LocalSnackbarDispatcher provides appBindings.snackbarDispatcher(),
-                LocalUriHandler provides SafeUriHandler(this),
                 LocalAnalyticsService provides appBindings.analyticsService(),
             ) {
                 Box(

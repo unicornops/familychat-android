@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2022-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -16,6 +17,7 @@ import androidx.work.Configuration
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.createGraphFactory
 import io.element.android.libraries.architecture.bindings
+import io.element.android.libraries.designsystem.theme.disableTextActionsThatLeaveTheApp
 import io.element.android.libraries.di.DependencyInjectionGraphOwner
 import io.element.android.libraries.matrix.api.SdkMetadata
 import io.element.android.libraries.workmanager.api.di.MetroWorkerFactory
@@ -50,5 +52,8 @@ class ElementXApplication : Application(), DependencyInjectionGraphOwner, Config
         // Disable the strict offset check for anchored draggable components, as it can cause issues with bottom sheets.
         // Remove once https://issuetracker.google.com/issues/477038695 is fixed.
         isAnchoredDraggableComponentsStrictOffsetCheckEnabled = false
+
+        // Family Chat (parental gate): no smart actions or Process-Text items in Compose text selection menus.
+        disableTextActionsThatLeaveTheApp()
     }
 }

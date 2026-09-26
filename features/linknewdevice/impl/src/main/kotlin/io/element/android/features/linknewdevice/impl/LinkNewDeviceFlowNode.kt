@@ -40,7 +40,7 @@ import io.element.android.features.linknewdevice.impl.screens.root.LinkDeviceTyp
 import io.element.android.features.linknewdevice.impl.screens.root.LinkNewDeviceRootNode
 import io.element.android.features.linknewdevice.impl.screens.scan.ScanQrCodeNode
 import io.element.android.features.lockscreen.api.DeviceUnlockEntryPoint
-import io.element.android.libraries.androidutils.browser.openAuthenticationUrlInChromeCustomTab
+import io.element.android.libraries.androidutils.browser.openAccountUrlBehindParentalGate
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.callback
@@ -52,7 +52,6 @@ import io.element.android.libraries.matrix.api.linknewdevice.ErrorType
 import io.element.android.libraries.matrix.api.linknewdevice.LinkDesktopStep
 import io.element.android.libraries.matrix.api.linknewdevice.LinkMobileStep
 import io.element.android.libraries.matrix.api.logs.LoggerTags
-import io.element.android.libraries.parentalgate.api.ParentalGateExempt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.launchIn
@@ -359,10 +358,9 @@ class LinkNewDeviceFlowNode(
         }
     }
 
-    // Approving the new device on the family's account provider: authentication, not a link out, so no parental gate.
-    @OptIn(ParentalGateExempt::class)
+    // Family Chat: an adult action on the account provider, so behind the parental gate.
     private suspend fun navigateToBrowser(url: String) {
-        activity?.openAuthenticationUrlInChromeCustomTab(
+        activity?.openAccountUrlBehindParentalGate(
             session = null,
             darkTheme = darkTheme,
             url = sessionEnterpriseService.tweakMasUrl(url),

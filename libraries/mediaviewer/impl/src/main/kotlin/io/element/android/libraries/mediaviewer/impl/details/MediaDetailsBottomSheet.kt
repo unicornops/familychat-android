@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
@@ -100,24 +101,17 @@ fun MediaDetailsBottomSheet(
             Spacer(modifier = Modifier.height(16.dp))
             if (state.eventId != null) {
                 HorizontalDivider()
-                val mimeType = state.mediaInfo.mimeType
-                val icon = when (mimeType) {
-                    MimeTypes.Apk ->
-                        ListItemContent.Icon(IconSource.Resource(R.drawable.ic_apk_install))
-                    else ->
-                        ListItemContent.Icon(IconSource.Vector(CompoundIcons.PopOut()))
+                // Family Chat: no "Install" for APKs, apps cannot be installed from the app (they can be saved or
+                // shared). "Open with" goes through the parental gate.
+                if (state.mediaInfo.mimeType != MimeTypes.Apk) {
+                    ListItem(
+                        leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.PopOut())),
+                        content = { Text(stringResource(id = CommonStrings.action_open_with)) },
+                        onClick = {
+                            onOpenWith(state.eventId)
+                        }
+                    )
                 }
-                val wording = when (mimeType) {
-                    MimeTypes.Apk -> stringResource(id = CommonStrings.common_install_apk_android)
-                    else -> stringResource(id = CommonStrings.action_open_with)
-                }
-                ListItem(
-                    leadingContent = icon,
-                    content = { Text(wording) },
-                    onClick = {
-                        onOpenWith(state.eventId)
-                    }
-                )
                 ListItem(
                     leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.VisibilityOn())),
                     content = { Text(stringResource(CommonStrings.action_view_in_timeline)) },

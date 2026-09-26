@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -18,6 +19,7 @@ import app.cash.molecule.moleculeFlow
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.matrix.test.core.aBuildMeta
+import io.element.android.libraries.mediaviewer.api.anApkMediaInfo
 import io.element.android.libraries.mediaviewer.test.viewer.aLocalMedia
 import io.element.android.tests.testutils.fake.registerFakeMediaStoreContentProvider
 import io.element.android.tests.testutils.robolectric.RobolectricTest
@@ -57,6 +59,13 @@ class AndroidLocalMediaActionsTest : RobolectricTest() {
         val sut = createAndroidLocalMediaActions()
         val result = sut.open(aLocalMedia(Uri.parse("file://afile")))
         assertThat(result.exceptionOrNull()).isNotNull()
+    }
+
+    @Test
+    fun `test AndroidLocalMediaAction open refuses to install an APK`() = runTest {
+        val sut = createAndroidLocalMediaActions()
+        val result = sut.open(aLocalMedia(aMediaFile().toUri(), mediaInfo = anApkMediaInfo()))
+        assertThat(result.exceptionOrNull()).isInstanceOf(AppInstallDisabledException::class.java)
     }
 
     @Test

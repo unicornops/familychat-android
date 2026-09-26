@@ -49,10 +49,13 @@ fun Activity.openUrlInChromeCustomTab(
 }
 
 /**
- * Open an authentication page of the family's own account provider (OAuth sign-in, identity reset approval, new
- * device approval) in a Custom Tab, WITHOUT the parental gate. The app waits for the page to hand back through its
- * redirect, so this is sign-in, not a link out; gating it would lock children out of their own account.
- * Anything else must use [openUrlInChromeCustomTab].
+ * Open the family's account provider for the FIRST sign-in on this device (OAuth), in a locked-down Custom Tab and
+ * WITHOUT the parental gate. The app waits for the page to hand back through its redirect, so this is sign-in, not a
+ * link out; gating it would lock children out of their own account. The tab has no "Open in browser", share, bookmark
+ * or download entries, and does not hand links to other apps.
+ *
+ * Anything else, including account actions while someone is signed in (adding an account, resetting the identity,
+ * approving a new device), must use [openAccountUrlBehindParentalGate]; plain links use [openUrlInChromeCustomTab].
  */
 @ParentalGateExempt
 fun Activity.openAuthenticationUrlInChromeCustomTab(
@@ -62,7 +65,7 @@ fun Activity.openAuthenticationUrlInChromeCustomTab(
 ) {
     val uri = url.toUri()
     try {
-        buildCustomTabsIntent(session, darkTheme).launchUrl(this, uri)
+        buildCustomTabsIntent(session, darkTheme, lockedDown = true).launchUrl(this, uri)
     } catch (_: ActivityNotFoundException) {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, uri))
@@ -72,9 +75,35 @@ fun Activity.openAuthenticationUrlInChromeCustomTab(
     }
 }
 
+/**
+ * Open a page of the family's account provider for an account action only an adult should take while someone is signed
+ * in (adding an account, resetting the identity, approving a new device): behind the parental gate, then in the same
+ * locked-down Custom Tab as [openAuthenticationUrlInChromeCustomTab].
+ */
+fun Activity.openAccountUrlBehindParentalGate(
+    session: CustomTabsSession?,
+    darkTheme: Boolean,
+    url: String
+) {
+    val uri = url.toUri()
+    startActivityBehindParentalGate(
+        target = buildCustomTabsIntent(session, darkTheme, lockedDown = true).intent.setData(uri),
+        fallback = Intent(Intent.ACTION_VIEW, uri),
+        noActivityFoundMessage = getString(R.string.error_no_compatible_app_found),
+    )
+}
+
+/**
+ * @param session the Custom Tabs session to use, if any.
+ * @param darkTheme whether the tab uses the dark colour scheme.
+ * @param lockedDown for the account provider's pages: no "Open in browser", share, bookmark or download entries, and
+ * links are not handed to other apps. AuthTabIntent would be stricter still, but it returns the redirect to an activity
+ * result instead of the app's OAuth redirect intent filter the sign-in flow is built on.
+ */
 private fun buildCustomTabsIntent(
     session: CustomTabsSession?,
     darkTheme: Boolean,
+    lockedDown: Boolean = false,
 ): CustomTabsIntent {
     return CustomTabsIntent.Builder()
         .setDefaultColorSchemeParams(
@@ -95,6 +124,16 @@ private fun buildCustomTabsIntent(
         // .setStartAnimations(context, R.anim.enter_fade_in, R.anim.exit_fade_out)
         // .setExitAnimations(context, R.anim.enter_fade_in, R.anim.exit_fade_out)
         .apply { session?.let { setSession(it) } }
+        .apply {
+            if (lockedDown) {
+                setShareState(CustomTabsIntent.SHARE_STATE_OFF)
+                setOpenInBrowserButtonState(CustomTabsIntent.OPEN_IN_BROWSER_STATE_OFF)
+                setBookmarksButtonEnabled(false)
+                setDownloadButtonEnabled(false)
+                setSendToExternalDefaultHandlerEnabled(false)
+                setInstantAppsEnabled(false)
+            }
+        }
         .build()
         .apply {
             // Disable download button

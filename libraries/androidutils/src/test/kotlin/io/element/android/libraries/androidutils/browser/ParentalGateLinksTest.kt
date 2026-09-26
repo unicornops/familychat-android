@@ -13,6 +13,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.PatternMatcher
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.content.IntentCompat
 import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
@@ -27,6 +28,9 @@ import org.junit.Before
 import org.junit.Test
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
+import org.w3c.dom.Element
+import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 
 private const val AN_EXTERNAL_URL = "https://example.org/some/page"
 private const val AN_APP_LINK = "https://safechat.family/app/login?account_provider=smith.safechat.family"
@@ -42,29 +46,52 @@ class ParentalGateLinksTest : RobolectricTest() {
 
     @Before
     fun setUp() {
-        // Stand-in for the app's MainActivity and the intent filters :app declares.
+        // Stand-in for the app's MainActivity, with the VIEW intent filters :app really declares.
         val mainActivity = ComponentName(application.packageName, "io.element.android.x.MainActivity")
         val packageManager = shadowOf(application.packageManager)
         packageManager.addActivityIfNotPresent(mainActivity)
-        packageManager.addIntentFilterForActivity(
-            mainActivity,
-            IntentFilter(Intent.ACTION_VIEW).apply {
-                addCategory(Intent.CATEGORY_DEFAULT)
-                addCategory(Intent.CATEGORY_BROWSABLE)
-                addDataScheme("https")
-                addDataAuthority("safechat.family", null)
-                addDataPath("/app/", PatternMatcher.PATTERN_PREFIX)
-            },
-        )
-        packageManager.addIntentFilterForActivity(
-            mainActivity,
-            IntentFilter(Intent.ACTION_VIEW).apply {
-                addCategory(Intent.CATEGORY_DEFAULT)
-                addCategory(Intent.CATEGORY_BROWSABLE)
-                addDataScheme("matrix")
-            },
-        )
+        val filters = appViewIntentFilters()
+        // The App Link and matrix: filters at least; a manifest change that drops them should fail loudly here.
+        assertThat(filters.size).isAtLeast(2)
+        filters.forEach { packageManager.addIntentFilterForActivity(mainActivity, it) }
     }
+
+    /**
+     * The VIEW intent filters of `app/src/main/AndroidManifest.xml`, so the test follows the manifest instead of a copy.
+     * Filters whose scheme is a resource reference (the OAuth redirect) are skipped.
+     */
+    private fun appViewIntentFilters(): List<IntentFilter> {
+        val manifest = generateSequence(File("").absoluteFile) { it.parentFile }
+            .map { File(it, "app/src/main/AndroidManifest.xml") }
+            .first { it.exists() }
+        val document = DocumentBuilderFactory.newInstance()
+            .apply { isNamespaceAware = true }
+            .newDocumentBuilder()
+            .parse(manifest)
+        val filters = document.getElementsByTagName("intent-filter")
+        return (0 until filters.length).mapNotNull { index ->
+            val element = filters.item(index) as Element
+            val actions = element.childElements("action").map { it.androidAttribute("name") }
+            if (Intent.ACTION_VIEW !in actions) return@mapNotNull null
+            val data = element.childElements("data")
+            val schemes = data.mapNotNull { it.androidAttribute("scheme").takeIf(String::isNotEmpty) }
+            if (schemes.isEmpty() || schemes.any { it.startsWith("@") }) return@mapNotNull null
+            IntentFilter(Intent.ACTION_VIEW).apply {
+                element.childElements("category").forEach { addCategory(it.androidAttribute("name")) }
+                schemes.forEach { addDataScheme(it) }
+                data.mapNotNull { it.androidAttribute("host").takeIf(String::isNotEmpty) }.forEach { addDataAuthority(it, null) }
+                data.mapNotNull { it.androidAttribute("pathPrefix").takeIf(String::isNotEmpty) }
+                    .forEach { addDataPath(it, PatternMatcher.PATTERN_PREFIX) }
+            }
+        }
+    }
+
+    private fun Element.childElements(tag: String): List<Element> {
+        val nodes = getElementsByTagName(tag)
+        return (0 until nodes.length).map { nodes.item(it) as Element }
+    }
+
+    private fun Element.androidAttribute(name: String): String = getAttributeNS("http://schemas.android.com/apk/res/android", name)
 
     @Test
     fun `an external link only starts the gate`() {
@@ -164,6 +191,36 @@ class ParentalGateLinksTest : RobolectricTest() {
         assertThat(started.component?.className).isNotEqualTo(ParentalGate.ACTIVITY_CLASS_NAME)
         assertThat(started.data).isEqualTo("https://account.smith.safechat.family/authorize".toUri())
         assertThat(started.hasExtra(CUSTOM_TABS_EXTRA_SESSION)).isTrue()
+        assertIsLockedDown(started)
+    }
+
+    @Test
+    fun `account actions while signed in go through the gate, then a locked-down tab`() {
+        val activity = anActivity()
+        activity.openAccountUrlBehindParentalGate(null, darkTheme = false, url = "https://account.smith.safechat.family/reset")
+        val gateIntent = shadowOf(activity).nextStartedActivity
+        assertIsGate(gateIntent)
+        val target = gateIntent.target()
+        assertThat(target.data).isEqualTo("https://account.smith.safechat.family/reset".toUri())
+        assertIsLockedDown(target)
+        assertThat(shadowOf(activity).nextStartedActivity).isNull()
+    }
+
+    @Test
+    fun `plain Custom Tabs are not locked down`() {
+        val activity = anActivity()
+        activity.openUrlInChromeCustomTab(null, darkTheme = false, url = AN_EXTERNAL_URL)
+        val target = shadowOf(activity).nextStartedActivity.target()
+        assertThat(target.getIntExtra(CustomTabsIntent.EXTRA_SHARE_STATE, -1)).isNotEqualTo(CustomTabsIntent.SHARE_STATE_OFF)
+    }
+
+    private fun assertIsLockedDown(customTab: Intent) {
+        assertThat(customTab.getIntExtra(CustomTabsIntent.EXTRA_SHARE_STATE, -1)).isEqualTo(CustomTabsIntent.SHARE_STATE_OFF)
+        assertThat(customTab.getIntExtra(CustomTabsIntent.EXTRA_OPEN_IN_BROWSER_STATE, -1))
+            .isEqualTo(CustomTabsIntent.OPEN_IN_BROWSER_STATE_OFF)
+        assertThat(customTab.getBooleanExtra(CustomTabsIntent.EXTRA_DISABLE_BOOKMARKS_BUTTON, false)).isTrue()
+        assertThat(customTab.getBooleanExtra(CustomTabsIntent.EXTRA_DISABLE_DOWNLOAD_BUTTON, false)).isTrue()
+        assertThat(customTab.getBooleanExtra(CustomTabsIntent.EXTRA_SEND_TO_EXTERNAL_DEFAULT_HANDLER, true)).isFalse()
     }
 
     @Test

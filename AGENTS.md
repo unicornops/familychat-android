@@ -41,7 +41,7 @@ PRs must meet these rules.
 - Family Chat has a child audience: every link or intent that leaves the app goes through the parental gate
   (`libraries/parentalgate/README.md`). Use `openUrlInExternalApp()` / `openUrlInChromeCustomTab()` or
   `startActivityBehindParentalGate()`; never build your own `Intent.ACTION_VIEW` or `CustomTabsIntent`
-  (`KonsistParentalGateTest` enforces it).
+  (`KonsistParentalGateTest` is a tripwire for it).
 
 ### Previews
 

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright 2026 Unicorn Operations Ltd.
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only
+  ~ Please see LICENSE files in the repository root for full details.
+  -->
+<!-- Family Chat strings. Never edit localazy.xml; Localazy sync is disabled for this fork, so these stay here. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="screen_media_details_install_disabled">"Apps can't be installed from Family Chat. You can save or share the file instead."</string>
+</resources>

@@ -45,6 +45,9 @@ fun Activity.startParentalGateTarget(request: ParentalGateRequest) {
             return
         } catch (exception: ActivityNotFoundException) {
             Timber.w(exception, "No activity found for the parental gate target")
+        } catch (@Suppress("TooGenericExceptionCaught") exception: RuntimeException) {
+            // FileUriExposedException, SecurityException (a non-exported target)...: never crash on the way out.
+            Timber.w(exception, "Could not start the parental gate target")
         }
     }
     if (candidates.isNotEmpty()) {

@@ -12,7 +12,10 @@ import android.os.Build
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
 import android.view.textclassifier.TextClassifier
+import android.widget.EditText
 import android.widget.TextView
 
 /**
@@ -29,6 +32,21 @@ fun TextView.hideTextActionsThatLeaveTheApp() {
     }
     customSelectionActionModeCallback = HideTextActionsThatLeaveTheAppCallback
     customInsertionActionModeCallback = HideTextActionsThatLeaveTheAppCallback
+}
+
+/**
+ * Apply [hideTextActionsThatLeaveTheApp] to every [EditText] under this view. For editors created by a library that
+ * gives no access to its view, such as the rich text composer.
+ */
+fun View.hideTextActionsThatLeaveTheAppInEditTexts() {
+    if (this is EditText) {
+        hideTextActionsThatLeaveTheApp()
+    }
+    if (this is ViewGroup) {
+        for (index in 0 until childCount) {
+            getChildAt(index).hideTextActionsThatLeaveTheAppInEditTexts()
+        }
+    }
 }
 
 /**

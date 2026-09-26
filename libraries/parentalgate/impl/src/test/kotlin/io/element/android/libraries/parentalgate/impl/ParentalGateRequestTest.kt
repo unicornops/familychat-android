@@ -106,10 +106,30 @@ class ParentalGateRequestTest : RobolectricTest() {
     }
 
     @Test
+    fun `a target that cannot be started securely shows the toast instead of crashing`() {
+        val activity = Robolectric.buildActivity(RefusingActivity::class.java).setup().get()
+        activity.startParentalGateTarget(
+            ParentalGateRequest(
+                target = Intent(Intent.ACTION_VIEW, "file:///sdcard/page.html".toUri()),
+                fallback = null,
+                noActivityFoundMessage = A_MESSAGE,
+            )
+        )
+        assertThat(ShadowToast.getTextOfLatestToast()).isEqualTo(A_MESSAGE)
+    }
+
+    @Test
     fun `a request without a target starts nothing`() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         activity.startParentalGateTarget(ParentalGateRequest(target = null, fallback = null, noActivityFoundMessage = A_MESSAGE))
         assertThat(shadowOf(activity).nextStartedActivity).isNull()
         assertThat(ShadowToast.getLatestToast()).isNull()
+    }
+}
+
+/** Refuses every start, like a FileUriExposedException or a SecurityException from a non-exported target. */
+class RefusingActivity : Activity() {
+    override fun startActivity(intent: Intent?) {
+        throw SecurityException("Not allowed")
     }
 }

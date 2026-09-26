@@ -38,33 +38,59 @@ reach it without any call site changing. If the activity is missing from a build
 | You want to | Use |
 |---|---|
 | Open a web page, `mailto:`, `tel:`, a store listing | `Context.openUrlInExternalApp(url)` or `Activity.openUrlInChromeCustomTab(null, darkTheme, url)` (both gated), `Context.openGooglePlay(appId)` |
-| Start any other intent that leaves the app (another app, maps, a future control-panel link, GIF attribution) | `Context.startActivityBehindParentalGate(intent, fallback)` |
+| Start any other intent that leaves the app (another app, maps, "open with", a future control-panel link, GIF attribution) | `Context.startActivityBehindParentalGate(intent, fallback)` |
 | Run something that is not an intent only for an adult (a purchase, if one is ever added) | `rememberLauncherForActivityResult(ParentalGateResultContract()) { passed -> ... }` |
-| Open a sign-in page on the family's own account provider | `Activity.openAuthenticationUrlInChromeCustomTab()`, which needs `@OptIn(ParentalGateExempt::class)` and a comment saying why |
-
-Other exits that are closed rather than gated:
-
-- **Text selection actions**: `TextView.hideTextActionsThatLeaveTheApp()` (in `androidutils/text`) turns off the text
-  classifier's smart actions (open link, call, email, map) and hides Process-Text / web search items ("Search",
-  "Translate") in the markdown composer. Compose text fields show neither. The app declares no `PROCESS_TEXT` package
-  query, so on Android 11 and later other apps' Process-Text items are not visible to it anyway.
-- **Element Call web view**: long press is disabled (no link menus, previews or text selection), and a link the user
-  taps to another site goes through `openUrlInExternalApp()` and so through the gate.
+| Open an account-provider page for an adult action while signed in (adding an account, identity reset, approving a new device) | `Activity.openAccountUrlBehindParentalGate()`: the gate, then a locked-down Custom Tab |
+| The FIRST sign-in on the device | `Activity.openAuthenticationUrlInChromeCustomTab()`, which needs `@OptIn(ParentalGateExempt::class)`; only `LoginFlowNode` uses it, and only when no account is signed in |
 
 **Future work that must use the gate**: the control-panel settings entry (#234 section 5) and the GIF attribution link
-(#238). A `Konsist` test (`KonsistParentalGateTest`) fails if code builds its own `Intent.ACTION_VIEW` or
-`CustomTabsIntent` outside the allowed files, which catches new upstream call sites after a rebase.
+(#238).
+
+## Exits closed rather than gated
+
+- **Compose text selection menus**: `ElementThemeApp`, which wraps every activity's content (`KonsistParentalGateTest`
+  checks it), adds `ParentalGateSafeContent`. It provides `SafeUriHandler` as `LocalUriHandler` (links in Compose text
+  go through the gate) and filters every text menu of the window down to cut, copy, paste, select all and autofill. The
+  Application also calls `disableTextActionsThatLeaveTheApp()`, which turns off Compose smart selection (Open, Call, Map)
+  and, through Compose's internal test hook (reflection, kept by `consumer-rules.pro`), its Process-Text items, for
+  dialogs and bottom sheets the root filter cannot reach.
+- **View text fields**: `TextView.hideTextActionsThatLeaveTheApp()` (in `androidutils/text`) turns off the text
+  classifier and hides Process-Text / web search items in the markdown composer. The rich text composer's EditText is
+  created inside the wysiwyg library, so the composer finds it under its host view and applies the same helper, and
+  `MainActivity.onActionModeStarted` filters any selection toolbar of the main window as a last line of defence.
+  Package visibility does not protect us here: the `CustomTabsService` query makes every browser visible to the app, the
+  UnifiedPush queries make distributors visible, and Android 7 to 10 list every app.
+- **Notifications**: every notification sets `setAllowSystemGeneratedContextualActions(false)`, so the system adds no
+  "open link" / "call" suggestions built from the message text.
+- **Map attribution**: MapLibre's attribution button opens the browser from its own dialog, so it is turned off;
+  `MapAttribution` shows the MapTiler / OpenStreetMap attribution as text, and a tap opens the licence page through
+  the gate.
+- **Element Call web view**: long press is disabled (no link menus, previews or text selection), and a link the user
+  taps to another site goes through the gate. Scripted navigations and same-site links stay in the web view (our
+  own hosted Element Call).
+- **Installing apps**: `REQUEST_INSTALL_PACKAGES` is removed from the app manifest and the media viewer has no "Install"
+  action; an APK received in a chat can be saved or shared.
 
 ## Not gated, and why
 
 - **Links the app handles itself**: the openers first resolve the link against the app's own intent filters
   (App Links on `https://safechat.family/app/`, `matrix:`, the notification deep link, the OAuth redirect) and open
   those in-app, pinned to our package. `matrix.to` permalinks never reach the openers: the timeline routes them in-app.
-- **Authentication**: the OAuth sign-in Custom Tab (`LoginFlowNode`), the identity-reset approval (`ResetIdentityFlowNode`)
-  and new-device approval (`LinkNewDeviceFlowNode`) run on the family's own account provider and hand back to the app
-  through its redirect. They are part of signing in, not a way out; gating them would lock children out of their own
-  account. "Manage account" in settings is a page to browse, so it is gated.
-- **User-initiated sharing and export**: the share sheet (`startSharePlainTextIntent`, media and file share), saving a
-  file, and "open with" on a received file.
-- **System screens**: app settings, notification settings, location settings, install-unknown-apps permission, ringtone
-  picker.
+- **The first sign-in**: the OAuth Custom Tab on the family's own account provider, while no account is signed in on
+  the device. It hands back to the app through its redirect; gating it would lock children out of their own account.
+  The tab is locked down: no "Open in browser", share, bookmark or download, and links are not handed to other apps.
+  (`AuthTabIntent` would be stricter, but it returns the redirect as an activity result, not through the OAuth redirect
+  intent filter the sign-in flow is built on.) Adding a second account, resetting the identity and approving a new
+  device are gated. "Manage account" in settings is gated.
+- **User-initiated sharing and export**: the share sheet (`startSharePlainTextIntent`, media and file share) and saving a
+  file. ("Open with" on a received file is gated: the sender chooses the file type.)
+- **System screens**: app settings, notification settings, location settings, ringtone picker.
+
+## The Konsist tripwire
+
+`KonsistParentalGateTest` fails when production code outside an allow-list mentions `ACTION_VIEW` (in any form),
+`SENDTO` / `DIAL` / `WEB_SEARCH` / `SEND`, `createChooser`, `Intent.parseUri`, `CATEGORY_APP_BROWSER`,
+`makeMainSelectorActivity`, Custom Tabs, `getLaunchIntentForPackage`, `AndroidUriHandler`, `URLSpan`,
+`LinkMovementMethod` or `Linkify`, which catches new upstream call sites after a rebase. It is a tripwire, not proof of
+coverage: it reads only this repository's sources, so exits inside libraries (MapLibre, wysiwyg, WebView, Compose) are
+invisible to it, and a file already on the allow-list can gain a new exit unseen.

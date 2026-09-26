@@ -19,6 +19,7 @@ import io.element.android.features.login.impl.classic.FakeElementClassicConnecti
 import io.element.android.features.login.impl.tokenlogin.SignInCodeStore
 import io.element.android.features.preferences.test.FakePreferencesEntryPoint
 import io.element.android.libraries.oauth.test.FakeOAuthActionFlow
+import io.element.android.libraries.sessionstorage.test.InMemorySessionStore
 import io.element.android.tests.testutils.lambda.lambdaError
 import io.element.android.tests.testutils.node.TestParentNode
 import kotlinx.coroutines.test.runTest
@@ -45,6 +46,7 @@ class DefaultLoginEntryPointTest {
                 elementClassicConnection = FakeElementClassicConnection(),
                 preferencesEntryPoint = FakePreferencesEntryPoint(),
                 signInCodeStore = SignInCodeStore(),
+                sessionStore = InMemorySessionStore(),
             )
         }
         val callback = object : LoginEntryPoint.Callback {

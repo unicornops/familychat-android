@@ -156,7 +156,9 @@ class WebViewWidgetMessageInterceptor(
 
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 // Family Chat (parental gate): a link the user taps in the call page that leads to another site goes
-                // through the gate, instead of browsing that site inside the call.
+                // through the gate, instead of browsing that site inside the call. Navigations without a user gesture
+                // (scripted redirects) and same-site links stay in the WebView: acceptable, the page is our own hosted
+                // Element Call.
                 val currentHost = view.url?.toUri()?.host
                 if (request.isForMainFrame && request.hasGesture() && request.url.host != currentHost) {
                     view.context.openUrlInExternalApp(request.url.toString())

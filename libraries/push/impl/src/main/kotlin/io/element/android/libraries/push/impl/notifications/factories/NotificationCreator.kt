@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -228,6 +229,7 @@ class DefaultNotificationCreator(
                 }
             }
             .setTicker(tickerText)
+            .disallowSystemContextualActions()
             .build()
     }
 
@@ -271,6 +273,7 @@ class DefaultNotificationCreator(
                 )
             )
             .setAutoCancel(true)
+            .disallowSystemContextualActions()
             .build()
     }
 
@@ -306,6 +309,7 @@ class DefaultNotificationCreator(
                     priority = NotificationCompat.PRIORITY_LOW
                 }
             }
+            .disallowSystemContextualActions()
             .build()
     }
 
@@ -341,6 +345,7 @@ class DefaultNotificationCreator(
             .setWhen(fallbackNotifiableEvent.timestamp)
             .setContentIntent(pendingIntentFactory.createOpenSessionPendingIntent(fallbackNotifiableEvent.sessionId))
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .disallowSystemContextualActions()
             .build()
     }
 
@@ -378,6 +383,7 @@ class DefaultNotificationCreator(
             }
             .setContentIntent(pendingIntentFactory.createOpenSessionPendingIntent(userId))
             .setDeleteIntent(pendingIntentFactory.createDismissSummaryPendingIntent(userId))
+            .disallowSystemContextualActions()
             .build()
     }
 
@@ -395,6 +401,7 @@ class DefaultNotificationCreator(
             .setAutoCancel(true)
             .setContentIntent(intent)
             .setDeleteIntent(intent)
+            .disallowSystemContextualActions()
             .build()
     }
 
@@ -414,6 +421,7 @@ class DefaultNotificationCreator(
             .setCategory(NotificationCompat.CATEGORY_ERROR)
             .setAutoCancel(true)
             .setContentIntent(pendingIntentFactory.createOpenSessionPendingIntent(userId))
+            .disallowSystemContextualActions()
             .build()
     }
 
@@ -552,3 +560,10 @@ private fun NotificationCompat.Builder.configureWith(notificationAccountParams: 
 }
 
 fun NotifiableMessageEvent.isSmartReplyError() = outGoingMessage && outGoingMessageFailed
+
+/**
+ * Family Chat (parental gate, unicornops/family-chat#232 decision 10): no system-generated "smart" actions on our
+ * notifications (open a link, call a number, show a map from the message text), they leave the app without the gate.
+ */
+internal fun NotificationCompat.Builder.disallowSystemContextualActions(): NotificationCompat.Builder =
+    setAllowSystemGeneratedContextualActions(false)

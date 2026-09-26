@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2026 Element Creations Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -155,6 +157,14 @@ fun MapBottomSheetScaffold(
                     }
                 }
                 overlayContent(sheetPadding)
+                if (!mapOptions.ornamentOptions.isAttributionEnabled) {
+                    MapAttribution(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(sheetPadding)
+                            .padding(8.dp),
+                    )
+                }
             }
         }
     }

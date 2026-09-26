@@ -14,8 +14,8 @@ import android.content.Intent
 import timber.log.Timber
 
 /**
- * The parental gate: an adult-level question (for example "Type the number four thousand and twelve in digits") that
- * must be answered before the app hands anything to another app. Family Chat declares a child audience (Google Play
+ * The parental gate: an adult-level question (a multiplication written in words, for example "What is twenty-three
+ * times seven?") that must be answered before the app hands anything to another app. Family Chat declares a child audience (Google Play
  * Families policy), so every link that leaves the app and anything purchasable sits behind it.
  * See unicornops/family-chat#232 decision 10 and `libraries/parentalgate/README.md`.
  *

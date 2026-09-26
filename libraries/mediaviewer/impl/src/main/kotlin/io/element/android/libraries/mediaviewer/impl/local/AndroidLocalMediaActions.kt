@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -8,8 +9,6 @@
 
 package io.element.android.libraries.mediaviewer.impl.local
 
-import android.Manifest
-import android.app.Activity
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
@@ -18,35 +17,29 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import androidx.activity.compose.ManagedActivityResultLauncher
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.ActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
-import androidx.core.content.PermissionChecker
 import androidx.core.net.toFile
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import io.element.android.libraries.androidutils.file.saveWithUniqueFileName
-import io.element.android.libraries.androidutils.system.startInstallFromSourceIntent
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.core.extensions.runCatchingExceptions
 import io.element.android.libraries.core.meta.BuildMeta
 import io.element.android.libraries.core.mimetype.MimeTypes
 import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.libraries.mediaviewer.api.local.LocalMedia
-import kotlinx.coroutines.launch
+import io.element.android.libraries.parentalgate.api.startActivityBehindParentalGate
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
+import io.element.android.libraries.androidutils.R as UtilsR
 
 @ContributesBinding(AppScope::class)
 class AndroidLocalMediaActions(
@@ -55,27 +48,10 @@ class AndroidLocalMediaActions(
     private val buildMeta: BuildMeta,
 ) : LocalMediaActions {
     private var activityContext: Context? = null
-    private var apkInstallLauncher: ManagedActivityResultLauncher<Intent, ActivityResult>? = null
-    private var pendingMedia: LocalMedia? = null
 
     @Composable
     override fun Configure() {
         val context = LocalContext.current
-        val coroutineScope = rememberCoroutineScope()
-        apkInstallLauncher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.StartActivityForResult(),
-        ) { activityResult ->
-            if (activityResult.resultCode == Activity.RESULT_OK) {
-                pendingMedia?.let {
-                    coroutineScope.launch {
-                        openFile(it)
-                    }
-                }
-            } else {
-                // User cancelled
-            }
-            pendingMedia = null
-        }
         return DisposableEffect(Unit) {
             activityContext = context
             onDispose {
@@ -125,28 +101,10 @@ class AndroidLocalMediaActions(
     override suspend fun open(localMedia: LocalMedia): Result<Unit> = withContext(coroutineDispatchers.io) {
         require(localMedia.uri.scheme == ContentResolver.SCHEME_FILE)
         runCatchingExceptions {
-            when (localMedia.info.mimeType) {
-                MimeTypes.Apk -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        if (PermissionChecker.checkPermission(
-                                context,
-                                Manifest.permission.REQUEST_INSTALL_PACKAGES,
-                                -1,
-                                -1,
-                                context.packageName
-                            ) == PermissionChecker.PERMISSION_GRANTED &&
-                            activityContext?.packageManager?.canRequestPackageInstalls() == false) {
-                            pendingMedia = localMedia
-                            activityContext?.startInstallFromSourceIntent(apkInstallLauncher!!).let { }
-                        } else {
-                            openFile(localMedia)
-                        }
-                    } else {
-                        openFile(localMedia)
-                    }
-                }
-                else -> openFile(localMedia)
-            }
+            // Family Chat: apps cannot be installed from the app (no REQUEST_INSTALL_PACKAGES). An APK can still be saved or
+            // shared.
+            if (localMedia.info.mimeType == MimeTypes.Apk) throw AppInstallDisabledException()
+            openFile(localMedia)
         }.onSuccess {
             Timber.v("Open media succeed")
         }.onFailure {
@@ -159,7 +117,13 @@ class AndroidLocalMediaActions(
             .setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             .setDataAndType(localMedia.toShareableUri(), localMedia.info.mimeType)
         withContext(coroutineDispatchers.main) {
-            activityContext?.startActivity(openMediaIntent)
+            // Family Chat (parental gate): "Open with" hands a file of the sender's chosen type (an HTML page, for example)
+            // to another app, so it sits behind the gate. Share and Save stay ungated.
+            val activityContext = activityContext ?: error("No activity to open the file from")
+            activityContext.startActivityBehindParentalGate(
+                target = openMediaIntent,
+                noActivityFoundMessage = activityContext.getString(UtilsR.string.error_no_compatible_app_found),
+            )
         }
     }
 
@@ -213,3 +177,6 @@ class AndroidLocalMediaActions(
         return uri.toFile()
     }
 }
+
+/** Family Chat: installing an APK received in a chat is turned off; it can be saved or shared instead. */
+class AppInstallDisabledException : IllegalStateException("Installing apps from Family Chat is turned off")

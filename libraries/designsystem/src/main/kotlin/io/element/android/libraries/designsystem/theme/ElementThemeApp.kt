@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -81,7 +82,8 @@ fun ElementThemeApp(
     ) {
         ElementTheme(
             theme = theme,
-            content = content,
+            // Family Chat: every activity's content, links and text selection menus stay behind the parental gate.
+            content = { ParentalGateSafeContent(content = content) },
             compoundLight = compoundLight,
             compoundDark = compoundDark,
         )

@@ -21,6 +21,11 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        // Family Chat: ParentalGateSafeContentTest opens a link, which reads the "no compatible app" message
+        unitTests.isIncludeAndroidResources = true
+    }
+
     buildTypes {
         getByName("release") {
             consumerProguardFiles("consumer-rules.pro")
