@@ -28,13 +28,31 @@ The same link with a parent-minted **sign-in code** (Palpo families only; contra
 [`docs/client-login-links.md`](https://github.com/unicornops/family-chat/blob/main/docs/client-login-links.md)):
 > https://safechat.family/app/login?account_provider=smith.safechat.family&login_hint=mxid:@alice:smith.safechat.family&hs=smith.safechat.family&token=…
 
+For a family on **its own domain** (BYOD, [unicornops/family-chat#254](https://github.com/unicornops/family-chat/issues/254)),
+`account_provider` and the Matrix IDs use the family's domain, and `hs` is the family's server it delegates to:
+> https://safechat.family/app/login?account_provider=smith.ie&login_hint=mxid:@alice:smith.ie&hs=smith.safechat.family&token=…
+
 `hs` is the bare host (optionally `:port`) that answers the client-server API. The app first asks the user to confirm
-the account ("Sign in as @alice:…?", or the host when there is no `login_hint`), then redeems `token` with
+the account ("Sign in as @alice:…?", or the account provider when there is no `login_hint`), then redeems `token` with
 `m.login.token` against `https://<hs>` (`TokenLoginNode`, `MatrixAuthenticationService.loginWithToken`) and goes
-straight into the app. A code that signs into another account than `login_hint` names is refused and its new device
-signed out again. A malformed `hs`, a host outside the account-provider allowlist, or a `token` without `hs`
-degrades the link to the prefill form above (the token is dropped, never redeemed). Declining, or a used or expired
-code (the server answers 401/403), falls back to the password form for `hs`, with the user id pre-filled. The token is
+straight into the app. A code that signs into another account than `login_hint` names (or, with no `login_hint`, an
+account on another server than `account_provider`) is refused and its new device signed out again. A malformed `hs`,
+an `hs` outside `*.safechat.family`, a `login_hint` that is not a Matrix ID on `account_provider`, or a `token`
+without `hs` degrades the link to the prefill form above (the token is dropped, never redeemed).
+
+The `*.safechat.family` allowlist applies to the homeserver a server name **resolves** to, not to the name typed or
+linked: `account_provider` (like a server name or Matrix ID typed on the sign-in screen) may be any well-formed
+`host[:port]` except the `safechat.family` apex, and the app runs `.well-known` discovery on it. Unless the resolved
+homeserver URL is `https://` and under `*.safechat.family`, sign-in stops with "This server isn't a Family Chat
+server" before a password is sent or an OAuth sign-in is started (`RustMatrixAuthenticationService.setHomeserver`,
+which every password and OAuth sign-in goes through; the homeserver is checked again after the login, as the login
+response can re-point it). The check is on the homeserver only: the OAuth issuer is whatever that homeserver
+advertises. A malformed `account_provider` (a scheme other than https, a path, a query, a fragment, user info, a
+backslash, whitespace) makes the app ignore the whole link. Declining, a used or expired code (the server answers
+401/403), or a code lost to a process death falls back to the password form for `account_provider`, resolved through
+`.well-known` discovery and the same check, with the user id pre-filled. It never falls back to `hs`, even when that
+discovery fails: `hs` is trusted for the code only, whose redeemed account is bound to `account_provider`, and a
+password has no such binding (a link could name another family's server as `hs`). The token is
 never logged and never written to a saved-state bundle: the parcelled `LoginParams` only carry an id naming it in the
 in-memory `SignInCodeStore`, so after a process death the link falls back to the password form. While an account is
 signed in, a login link only shows "You're already signed in", and its code is not redeemed.

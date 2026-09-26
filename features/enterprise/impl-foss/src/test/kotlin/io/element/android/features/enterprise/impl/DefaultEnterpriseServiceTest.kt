@@ -68,26 +68,72 @@ class DefaultEnterpriseServiceTest {
     @Test
     fun `isAllowedToConnectToHomeserver rejects anything that is not a bare host, whatever it ends with`() = runTest {
         val defaultEnterpriseService = DefaultEnterpriseService()
-        listOf(
-            // The real host of each of these is evil.com
-            "https://evil.com?.safechat.family",
-            "https://evil.com#.safechat.family",
-            "https://evil.com\\.safechat.family",
-            "https://evil.com/.safechat.family",
-            "https://user@evil.com/x.safechat.family",
-            "evil.com?.safechat.family",
-            // Userinfo, paths, other schemes and malformed hosts
-            "https://ana@smith.safechat.family",
-            "https://smith.safechat.family/path",
-            "https://smith.safechat.family//",
-            "http://smith.safechat.family",
-            "ftp://smith.safechat.family",
-            "https://smith.safechat.family:port",
-            "https://-smith.safechat.family",
-            "https://smith..safechat.family",
-            "https://smith .safechat.family",
-        ).forEach {
+        (notABareHost + "http://smith.safechat.family").forEach {
             assertThat(defaultEnterpriseService.isAllowedToConnectToHomeserver(it)).isFalse()
+        }
+    }
+
+    @Test
+    fun `isAllowedAccountProvider accepts any well-formed server name, a family's own domain included`() = runTest {
+        val defaultEnterpriseService = DefaultEnterpriseService()
+        listOf(
+            "smith.safechat.family",
+            "https://smith.safechat.family",
+            // BYOD: the family's own domain, judged on where its .well-known resolves
+            "smith.ie",
+            "Smith.IE",
+            "https://smith.ie",
+            "https://smith.ie/",
+            "smith.ie:8448",
+            // Allowed to start discovery; refused once it resolves outside the allowlist
+            "evil.com",
+        ).forEach {
+            assertThat(defaultEnterpriseService.isAllowedAccountProvider(it)).isTrue()
+        }
+    }
+
+    @Test
+    fun `isAllowedAccountProvider still refuses the apex and anything that is not a bare host`() = runTest {
+        val defaultEnterpriseService = DefaultEnterpriseService()
+        (
+            notABareHost + listOf(
+                "safechat.family",
+                "https://safechat.family",
+                "https://safechat.family/",
+                "http://smith.ie",
+                "smith.ie%2f",
+                "@kid:smith.ie",
+                "",
+            )
+        ).forEach {
+            assertThat(defaultEnterpriseService.isAllowedAccountProvider(it)).isFalse()
+        }
+    }
+
+    @Test
+    fun `isAllowedResolvedHomeserverUrl only accepts an https family subdomain`() = runTest {
+        val defaultEnterpriseService = DefaultEnterpriseService()
+        listOf(
+            "https://smith.safechat.family",
+            "https://smith.safechat.family/",
+            "https://smith-m1.safechat.family:8448/",
+            "HTTPS://Smith.SafeChat.Family",
+        ).forEach {
+            assertThat(defaultEnterpriseService.isAllowedResolvedHomeserverUrl(it)).isTrue()
+        }
+        (
+            notABareHost + listOf(
+                // A domain resolving to itself, or anywhere else outside the allowlist
+                "https://evil.com",
+                "https://smith.ie",
+                "https://safechat.family",
+                // Never over plain http, and never without a scheme
+                "http://smith.safechat.family",
+                "smith.safechat.family",
+                "",
+            )
+        ).forEach {
+            assertThat(defaultEnterpriseService.isAllowedResolvedHomeserverUrl(it)).isFalse()
         }
     }
 
@@ -159,4 +205,26 @@ class DefaultEnterpriseServiceTest {
         val defaultEnterpriseService = DefaultEnterpriseService()
         assertThat(defaultEnterpriseService.getNoisyNotificationChannelId(A_SESSION_ID)).isNull()
     }
+
+    /** Values whose real host is not the one they end with, or that are not a bare host at all: always refused. */
+    private val notABareHost = listOf(
+        // The real host of each of these is evil.com
+        "https://evil.com?.safechat.family",
+        "https://evil.com#.safechat.family",
+        "https://evil.com\\.safechat.family",
+        "https://evil.com/.safechat.family",
+        "https://user@evil.com/x.safechat.family",
+        "evil.com?.safechat.family",
+        // Userinfo, paths, other schemes and malformed hosts
+        "https://ana@smith.safechat.family",
+        "https://smith.safechat.family/path",
+        "https://smith.safechat.family//",
+        "ftp://smith.safechat.family",
+        "https://smith.safechat.family:port",
+        "https://-smith.safechat.family",
+        "https://smith..safechat.family",
+        "https://smith .safechat.family",
+        "https://smith.safe\tchat.family",
+        "https://evil.com%2f.safechat.family",
+    )
 }

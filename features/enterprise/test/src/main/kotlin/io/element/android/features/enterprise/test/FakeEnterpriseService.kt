@@ -26,6 +26,9 @@ class FakeEnterpriseService(
     private val defaultHomeserverListResult: () -> List<String> = { emptyList() },
     private val forcedAccountProviderResult: () -> String? = { defaultHomeserverListResult().singleOrNull() },
     private val isAllowedToConnectToHomeserverResult: (String) -> Boolean = { lambdaError() },
+    // Like the interface default, the account provider check is the homeserver check unless a test says otherwise.
+    private val isAllowedAccountProviderResult: (String) -> Boolean = isAllowedToConnectToHomeserverResult,
+    private val isAllowedResolvedHomeserverUrlResult: (String) -> Boolean = { lambdaError() },
     initialSemanticColors: SemanticColorsLightDark = SemanticColorsLightDark.default,
     initialBrandColor: Color? = null,
     private val overrideBrandColorResult: (SessionId?, String?) -> Unit = { _, _ -> lambdaError() },
@@ -56,6 +59,14 @@ class FakeEnterpriseService(
 
     override suspend fun isAllowedToConnectToHomeserver(homeserverUrl: String): Boolean = simulateLongTask {
         isAllowedToConnectToHomeserverResult(homeserverUrl)
+    }
+
+    override suspend fun isAllowedAccountProvider(accountProvider: String): Boolean = simulateLongTask {
+        isAllowedAccountProviderResult(accountProvider)
+    }
+
+    override suspend fun isAllowedResolvedHomeserverUrl(homeserverUrl: String): Boolean = simulateLongTask {
+        isAllowedResolvedHomeserverUrlResult(homeserverUrl)
     }
 
     override suspend fun isElementProEnforced(serverName: String): Boolean = simulateLongTask {

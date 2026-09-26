@@ -32,6 +32,7 @@ class TokenLoginNode(
      */
     data class Inputs(
         val hs: String,
+        val accountProvider: String,
         val loginHint: String?,
         val signInCodeId: String,
     ) : NodeInputs
@@ -44,7 +45,12 @@ class TokenLoginNode(
     private val inputs: Inputs = inputs()
     private val callback: Callback = callback()
     private val presenter = presenterFactory.create(
-        params = TokenLoginPresenter.Params(hs = inputs.hs, loginHint = inputs.loginHint, signInCodeId = inputs.signInCodeId),
+        params = TokenLoginPresenter.Params(
+            hs = inputs.hs,
+            accountProvider = inputs.accountProvider,
+            loginHint = inputs.loginHint,
+            signInCodeId = inputs.signInCodeId,
+        ),
         onContinueWithPassword = callback::onContinueWithPassword,
     )
 

@@ -34,7 +34,7 @@ class TokenLoginPresenterTest {
 
     @Test
     fun `present - asks for confirmation first, naming the account, and sends nothing until then`() = runTest {
-        val loginWithTokenResult = lambdaRecorder<String, String, String?, Result<SessionId>> { _, _, _ -> Result.success(A_SESSION_ID) }
+        val loginWithTokenResult = lambdaRecorder<String, String, String?, String, Result<SessionId>> { _, _, _, _ -> Result.success(A_SESSION_ID) }
         val signInCodeStore = SignInCodeStore()
         val id = signInCodeStore.put(A_TOKEN)
         createTokenLoginPresenter(
@@ -43,7 +43,7 @@ class TokenLoginPresenterTest {
             authenticationService = FakeMatrixAuthenticationService(loginWithTokenResult = loginWithTokenResult),
         ).test {
             val initialState = awaitItem()
-            assertThat(initialState.homeserver).isEqualTo(A_HOST)
+            assertThat(initialState.serverName).isEqualTo(A_HOST)
             assertThat(initialState.userId).isEqualTo("@ana:smith.safechat.family")
             assertThat(initialState.accountDisplayName).isEqualTo("@ana:smith.safechat.family")
             assertThat(initialState.loginAction).isEqualTo(AsyncData.Uninitialized)
@@ -53,7 +53,7 @@ class TokenLoginPresenterTest {
     }
 
     @Test
-    fun `present - without a usable login hint the confirmation names the host`() = runTest {
+    fun `present - without a usable login hint the confirmation names the family server`() = runTest {
         createTokenLoginPresenter(loginHint = "not-an-mxid").test {
             val initialState = awaitItem()
             assertThat(initialState.userId).isNull()
@@ -63,7 +63,7 @@ class TokenLoginPresenterTest {
 
     @Test
     fun `present - confirming redeems the code once against https hs, for the account the link named`() = runTest {
-        val loginWithTokenResult = lambdaRecorder<String, String, String?, Result<SessionId>> { _, _, _ -> Result.success(A_SESSION_ID) }
+        val loginWithTokenResult = lambdaRecorder<String, String, String?, String, Result<SessionId>> { _, _, _, _ -> Result.success(A_SESSION_ID) }
         val signInCodeStore = SignInCodeStore()
         val id = signInCodeStore.put(A_TOKEN)
         createTokenLoginPresenter(
@@ -78,15 +78,41 @@ class TokenLoginPresenterTest {
             assertThat(awaitItem().loginAction).isInstanceOf(AsyncData.Loading::class.java)
             assertThat(awaitItem().loginAction).isEqualTo(AsyncData.Success(A_SESSION_ID))
             loginWithTokenResult.assertions().isCalledOnce()
-                .with(value("https://$A_HOST"), value(A_TOKEN), value("@ana:smith.safechat.family"))
+                .with(value("https://$A_HOST"), value(A_TOKEN), value("@ana:smith.safechat.family"), value(A_HOST))
             // The code has left the store
             assertThat(signInCodeStore.contains(id)).isFalse()
         }
     }
 
     @Test
+    fun `present - a link for a family on its own domain redeems against hs and names the family's domain`() = runTest {
+        val loginWithTokenResult = lambdaRecorder<String, String, String?, String, Result<SessionId>> { _, _, _, _ -> Result.success(A_SESSION_ID) }
+        val isAllowedToConnectToHomeserver = lambdaRecorder<String, Boolean> { true }
+        val signInCodeStore = SignInCodeStore()
+        createTokenLoginPresenter(
+            hs = "smith-m1.safechat.family",
+            accountProvider = "smith.ie",
+            loginHint = "mxid:@kid:smith.ie",
+            signInCodeId = signInCodeStore.put(A_TOKEN),
+            signInCodeStore = signInCodeStore,
+            authenticationService = FakeMatrixAuthenticationService(loginWithTokenResult = loginWithTokenResult),
+            accountProviderAccessControl = FakeAccountProviderAccessControl(isAllowedToConnectToHomeserverResult = isAllowedToConnectToHomeserver),
+        ).test {
+            val initialState = awaitItem()
+            assertThat(initialState.serverName).isEqualTo("smith.ie")
+            assertThat(initialState.accountDisplayName).isEqualTo("@kid:smith.ie")
+            initialState.eventSink(TokenLoginEvent.Confirm)
+            skipItems(1)
+            assertThat(awaitItem().loginAction).isEqualTo(AsyncData.Success(A_SESSION_ID))
+            isAllowedToConnectToHomeserver.assertions().isCalledOnce().with(value("https://smith-m1.safechat.family"))
+            loginWithTokenResult.assertions().isCalledOnce()
+                .with(value("https://smith-m1.safechat.family"), value(A_TOKEN), value("@kid:smith.ie"), value("smith.ie"))
+        }
+    }
+
+    @Test
     fun `present - a host starting with http is still redeemed over https`() = runTest {
-        val loginWithTokenResult = lambdaRecorder<String, String, String?, Result<SessionId>> { _, _, _ -> Result.success(A_SESSION_ID) }
+        val loginWithTokenResult = lambdaRecorder<String, String, String?, String, Result<SessionId>> { _, _, _, _ -> Result.success(A_SESSION_ID) }
         val signInCodeStore = SignInCodeStore()
         createTokenLoginPresenter(
             hs = "httpfamily.safechat.family",
@@ -97,14 +123,14 @@ class TokenLoginPresenterTest {
             awaitItem().eventSink(TokenLoginEvent.Confirm)
             skipItems(2)
             loginWithTokenResult.assertions().isCalledOnce()
-                .with(value("https://httpfamily.safechat.family"), value(A_TOKEN), value("@ana:smith.safechat.family"))
+                .with(value("https://httpfamily.safechat.family"), value(A_TOKEN), value("@ana:smith.safechat.family"), value(A_HOST))
         }
     }
 
     @Test
     fun `present - cancelling forgets the code and hands over to the password flow`() = runTest {
         val onContinueWithPassword = lambdaRecorder<Unit> {}
-        val loginWithTokenResult = lambdaRecorder<String, String, String?, Result<SessionId>> { _, _, _ -> Result.success(A_SESSION_ID) }
+        val loginWithTokenResult = lambdaRecorder<String, String, String?, String, Result<SessionId>> { _, _, _, _ -> Result.success(A_SESSION_ID) }
         val signInCodeStore = SignInCodeStore()
         val id = signInCodeStore.put(A_TOKEN)
         createTokenLoginPresenter(
@@ -128,7 +154,7 @@ class TokenLoginPresenterTest {
             signInCodeId = signInCodeStore.put(A_TOKEN),
             signInCodeStore = signInCodeStore,
             authenticationService = FakeMatrixAuthenticationService(
-                loginWithTokenResult = { _, _, _ -> Result.failure(SignInCodeException.Rejected(httpStatus = 403, errcode = "M_FORBIDDEN")) },
+                loginWithTokenResult = { _, _, _, _ -> Result.failure(SignInCodeException.Rejected(httpStatus = 403, errcode = "M_FORBIDDEN")) },
             ),
             onContinueWithPassword = onContinueWithPassword,
         ).test {
@@ -144,7 +170,7 @@ class TokenLoginPresenterTest {
 
     @Test
     fun `present - a code no longer in memory fails without contacting the server`() = runTest {
-        val loginWithTokenResult = lambdaRecorder<String, String, String?, Result<SessionId>> { _, _, _ -> Result.success(A_SESSION_ID) }
+        val loginWithTokenResult = lambdaRecorder<String, String, String?, String, Result<SessionId>> { _, _, _, _ -> Result.success(A_SESSION_ID) }
         createTokenLoginPresenter(
             signInCodeId = "unknown-id",
             authenticationService = FakeMatrixAuthenticationService(loginWithTokenResult = loginWithTokenResult),
@@ -158,14 +184,15 @@ class TokenLoginPresenterTest {
 
     @Test
     fun `present - a homeserver outside the allowlist never receives the code`() = runTest {
-        val loginWithTokenResult = lambdaRecorder<String, String, String?, Result<SessionId>> { _, _, _ -> Result.success(A_SESSION_ID) }
+        val loginWithTokenResult = lambdaRecorder<String, String, String?, String, Result<SessionId>> { _, _, _, _ -> Result.success(A_SESSION_ID) }
         val signInCodeStore = SignInCodeStore()
         val id = signInCodeStore.put(A_TOKEN)
         createTokenLoginPresenter(
             signInCodeId = id,
             signInCodeStore = signInCodeStore,
             authenticationService = FakeMatrixAuthenticationService(loginWithTokenResult = loginWithTokenResult),
-            accountProviderAccessControl = FakeAccountProviderAccessControl(isAllowedToConnectToAccountProviderResult = { false }),
+            // Only the homeserver check applies: the account provider is only a name, the code goes to `hs`
+            accountProviderAccessControl = FakeAccountProviderAccessControl(isAllowedToConnectToHomeserverResult = { false }),
         ).test {
             awaitItem().eventSink(TokenLoginEvent.Confirm)
             skipItems(1)
@@ -177,14 +204,15 @@ class TokenLoginPresenterTest {
 
     private fun createTokenLoginPresenter(
         hs: String = A_HOST,
+        accountProvider: String = A_HOST,
         loginHint: String? = A_LOGIN_HINT,
         signInCodeStore: SignInCodeStore = SignInCodeStore(),
         signInCodeId: String = signInCodeStore.put(A_TOKEN),
         authenticationService: FakeMatrixAuthenticationService = FakeMatrixAuthenticationService(),
-        accountProviderAccessControl: AccountProviderAccessControl = FakeAccountProviderAccessControl(isAllowedToConnectToAccountProviderResult = { true }),
+        accountProviderAccessControl: AccountProviderAccessControl = FakeAccountProviderAccessControl(isAllowedToConnectToHomeserverResult = { true }),
         onContinueWithPassword: () -> Unit = {},
     ) = TokenLoginPresenter(
-        params = TokenLoginPresenter.Params(hs = hs, loginHint = loginHint, signInCodeId = signInCodeId),
+        params = TokenLoginPresenter.Params(hs = hs, accountProvider = accountProvider, loginHint = loginHint, signInCodeId = signInCodeId),
         onContinueWithPassword = onContinueWithPassword,
         authenticationService = authenticationService,
         accountProviderAccessControl = accountProviderAccessControl,

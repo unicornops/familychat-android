@@ -35,6 +35,10 @@ interface MatrixAuthenticationService {
     /**
      * Set the homeserver to use for authentication, and return its details.
      *
+     * A server name is resolved through `.well-known` discovery first. Family Chat: the homeserver it resolves to
+     * must be allowed (see `EnterpriseService.isAllowedResolvedHomeserverUrl`), else this fails with
+     * [AuthenticationException.HomeserverNotAllowed] and [login] and [getOAuthUrl] have nothing to send credentials to.
+     *
      * @param homeserver the homeserver URL or server name to authenticate against.
      */
     suspend fun setHomeserver(homeserver: String): Result<MatrixHomeServerDetails>
@@ -55,16 +59,20 @@ interface MatrixAuthenticationService {
      * even if the caller is cancelled (its session is then stored as usual), and redemptions never overlap. Any
      * failure after the server issued credentials signs the new device out again.
      *
-     * Failures: a used or expired code is a [SignInCodeException.Rejected], a device for another account than
-     * [expectedUserId] a [SignInCodeException.UserMismatch], any other refusal a [SignInCodeException.Failed],
+     * Failures: a [homeserverUrl] outside the allowlist is a [SignInCodeException.HomeserverNotAllowed] (the code is
+     * not sent), a used or expired code a [SignInCodeException.Rejected], a device for another account than the
+     * link was for a [SignInCodeException.UserMismatch], any other refusal a [SignInCodeException.Failed],
      * an unreachable homeserver an [AuthenticationException.ServerUnreachable] and an account that is already
      * signed in an [AuthenticationException.AccountAlreadyLoggedIn].
      *
      * @param homeserverUrl the `https://<hs>` base URL answering the client-server API for the family.
      * @param token the login token; never logged, never persisted.
      * @param expectedUserId the Matrix ID the link named, if any: a code for another account is refused.
+     * @param accountProvider the link's account provider (the family's server name: its own domain for a family
+     *  that brought one, which then differs from [homeserverUrl]). With no [expectedUserId], a code for an account
+     *  on another server is refused.
      */
-    suspend fun loginWithToken(homeserverUrl: String, token: String, expectedUserId: String?): Result<SessionId>
+    suspend fun loginWithToken(homeserverUrl: String, token: String, expectedUserId: String?, accountProvider: String): Result<SessionId>
 
     /*
      * OAuth part.

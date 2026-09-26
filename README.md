@@ -38,8 +38,11 @@ There is deliberately **no** private enterprise overlay: everything is rebranded
 
 * Application id `family.safechat.android`, app name "Family Chat", our own launcher icons and brand
   colours (teal `#0D9488`, accent `#F97316`).
-* Account provider locked to `safechat.family` and its subdomains. The server picker and account
-  creation are hidden: accounts are created by a parent in the control panel.
+* Sign-in locked to family servers under `safechat.family`: a server name (a family's own domain
+  included) is accepted only if its `.well-known` resolves to an `https://*.safechat.family` homeserver, checked
+  before a password is sent or an OAuth sign-in starts, and again after login. The check is on the homeserver,
+  not on the OAuth issuer it advertises. The server picker and account creation are hidden: accounts are created by a
+  parent in the control panel.
 * App Links on `safechat.family/app/...`; Element's `*.element.io` link handling removed.
 * Website, privacy, terms and OAuth client metadata point at `safechat.family`.
 * No third-party analytics or crash reporting. PostHog and Sentry are excluded from the build

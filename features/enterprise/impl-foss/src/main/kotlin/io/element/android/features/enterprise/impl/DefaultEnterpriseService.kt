@@ -32,15 +32,16 @@ class DefaultEnterpriseService : EnterpriseService {
     override fun homeserverAllowList(): List<String> = listOf(ACCOUNT_PROVIDER)
 
     /**
-     * Nothing is forced: every family has its own server (`<family>.safechat.family`), so the user enters
-     * theirs, or a sign-in link names it. [isAllowedToConnectToHomeserver] keeps that within the allowlist.
+     * Nothing is forced: every family has its own server (`<family>.safechat.family`, or the family's own domain
+     * delegating to one), so the user enters theirs, or a sign-in link names it. [isAllowedAccountProvider] and
+     * [isAllowedResolvedHomeserverUrl] keep that within the allowlist.
      */
     override fun forcedAccountProvider(): String? = null
 
     /**
      * Allows every family subdomain of [ACCOUNT_PROVIDER] and nothing else, not even the apex, which serves the
-     * website rather than a homeserver. Custom domains brought by a family (BYOD) are not accepted yet, see
-     * unicornops/family-chat#234.
+     * website rather than a homeserver. This is the check for a homeserver the app talks to directly: the URL
+     * `.well-known` discovery resolved to, or the `hs` host a sign-in code is redeemed against.
      *
      * The input is a bare `host[:port]`, optionally prefixed with `https://` and followed by a single `/`.
      * Anything else (another scheme, a path, a query, a fragment, user info, a backslash) is refused rather than
@@ -51,11 +52,33 @@ class DefaultEnterpriseService : EnterpriseService {
         return host.endsWith(".$ACCOUNT_PROVIDER")
     }
 
+    /**
+     * Any well-formed server name, as the family's own domain (BYOD, e.g. `smith.ie`) is not under
+     * [ACCOUNT_PROVIDER]: it only serves the `.well-known` documents pointing at the family's server. What decides is
+     * where discovery resolves it to, see [isAllowedResolvedHomeserverUrl], and no credentials are sent before that.
+     * The input is held to the same strict shape as in [isAllowedToConnectToHomeserver]. The apex
+     * [ACCOUNT_PROVIDER] is still refused: it is the website, never a family's server.
+     */
+    override suspend fun isAllowedAccountProvider(accountProvider: String): Boolean {
+        val host = parseHost(accountProvider) ?: return false
+        return host != ACCOUNT_PROVIDER
+    }
+
+    /**
+     * The homeserver URL a server name resolved to must be `https://` and a family subdomain of
+     * [ACCOUNT_PROVIDER]. A domain whose `.well-known` points at some family's server is then no different from
+     * typing that family's server directly.
+     */
+    override suspend fun isAllowedResolvedHomeserverUrl(homeserverUrl: String): Boolean {
+        val url = homeserverUrl.trim()
+        return url.startsWith(HTTPS_SCHEME, ignoreCase = true) && isAllowedToConnectToHomeserver(url)
+    }
+
     private fun parseHost(homeserverUrl: String): String? {
         val hostAndPort = homeserverUrl
             .trim()
             .lowercase()
-            .removePrefix("https://")
+            .removePrefix(HTTPS_SCHEME)
             .removeSuffix("/")
         return hostAndPort
             .takeIf { HOST_PORT_REGEX.matches(it) }
@@ -86,6 +109,8 @@ class DefaultEnterpriseService : EnterpriseService {
     companion object {
         /** The only account provider Family Chat signs in to. */
         const val ACCOUNT_PROVIDER = "safechat.family"
+
+        private const val HTTPS_SCHEME = "https://"
 
         /** DNS hostname labels, optionally followed by a port; the same shape the login link accepts for `hs`. */
         private val HOST_PORT_REGEX = Regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*(:[0-9]{1,5})?$")

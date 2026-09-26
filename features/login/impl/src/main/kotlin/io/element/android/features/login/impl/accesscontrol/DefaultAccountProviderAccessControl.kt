@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -30,6 +31,13 @@ class DefaultAccountProviderAccessControl(
         false
     }
 
+    override suspend fun isAllowedToConnectToHomeserver(homeserverUrl: String) = enterpriseService.isAllowedToConnectToHomeserver(homeserverUrl)
+
+    /**
+     * Throws when the user may not start signing in with this account provider. For Family Chat any well-formed
+     * server name passes, a family's own domain included: the matrix authentication service then refuses it if its
+     * `.well-known` resolves outside the allowlist, before any credentials are sent.
+     */
     @Throws(AccountProviderAccessException::class)
     suspend fun assertIsAllowedToConnectToAccountProvider(
         title: String,
@@ -44,7 +52,7 @@ class DefaultAccountProviderAccessControl(
                 )
             }
         }
-        if (enterpriseService.isAllowedToConnectToHomeserver(accountProviderUrl).not()) {
+        if (enterpriseService.isAllowedAccountProvider(accountProviderUrl).not()) {
             throw AccountProviderAccessException.UnauthorizedAccountProviderException(
                 unauthorisedAccountProviderTitle = title,
                 authorisedAccountProviderTitles = enterpriseService.homeserverAllowList(),

@@ -11,6 +11,10 @@ appId: ${MAESTRO_APP_ID}
 #     -e MAESTRO_LINK_HS=smith.safechat.family -e MAESTRO_LINK_TOKEN=<token> \
 #     -e MAESTRO_RECOVERY_KEY=<key> .maestro/tests/account/loginWithSignInCode.yaml
 #
+# For a family on its own domain (unicornops/family-chat#254), the account provider and Matrix ID use the family's
+# domain and `hs` is the family's server, e.g. MAESTRO_LINK_ACCOUNT_PROVIDER=smith.ie MAESTRO_LINK_MXID=@ana:smith.ie
+# MAESTRO_LINK_HS=smith-m1.safechat.family. The password fallback below goes to the account provider, never to `hs`.
+#
 # `autoVerify` makes Android treat safechat.family as verified for the app under test, because the
 # production assetlinks.json still carries a placeholder fingerprint (#240).
 - clearState
@@ -42,5 +46,6 @@ appId: ${MAESTRO_APP_ID}
     timeout: 20000
 - takeScreenshot: build/maestro/112-SignInCodeReplayRefused
 - tapOn: "Continue"
-# The password fallback signs in to the host the code was for (`hs`), not the safechat.family apex.
-- assertVisible: "Sign in to ${MAESTRO_LINK_HS}"
+# The password fallback signs in to the link's account provider (through .well-known discovery), never to `hs`:
+# a password has nothing binding it to the family the way the redeemed code's user id is.
+- assertVisible: "Sign in to ${MAESTRO_LINK_ACCOUNT_PROVIDER}"

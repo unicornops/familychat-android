@@ -152,7 +152,10 @@ class RootFlowNodeTest : RobolectricTest() {
             ),
             plugins = emptyList(),
             sessionStore = sessionStore,
-            accountProviderAccessControl = FakeAccountProviderAccessControl { true },
+            accountProviderAccessControl = FakeAccountProviderAccessControl(
+                isAllowedToConnectToAccountProviderResult = { true },
+                isAllowedToConnectToHomeserverResult = { true },
+            ),
             navStateFlowFactory = RootNavStateFlowFactory(
                 sessionStore = sessionStore,
                 cacheService = FakeCacheService(),

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -139,6 +140,9 @@ class QrCodeLoginFlowNode(
                                     Timber.e(error, "OAuth metadata is invalid")
                                     backstack.replace(NavTarget.Error(QrCodeErrorScreenType.UnknownError))
                                 }
+                                QrLoginException.HomeserverNotAllowed -> {
+                                    backstack.replace(NavTarget.Error(QrCodeErrorScreenType.HomeserverNotAllowed))
+                                }
                                 QrLoginException.CheckCodeAlreadySent,
                                 QrLoginException.CheckCodeCannotBeSent,
                                 QrLoginException.ContinuationAlreadySent,
@@ -253,4 +257,8 @@ sealed interface QrCodeErrorScreenType : NodeInputs, Parcelable {
 
     @Parcelize
     data object UnknownError : QrCodeErrorScreenType
+
+    /** Family Chat: the other device is signed in to a server that is not a Family Chat server. */
+    @Parcelize
+    data object HomeserverNotAllowed : QrCodeErrorScreenType
 }

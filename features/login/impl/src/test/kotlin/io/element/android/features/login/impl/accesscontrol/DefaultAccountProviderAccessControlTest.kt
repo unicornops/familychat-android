@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -14,6 +15,7 @@ import io.element.android.features.login.impl.changeserver.AccountProviderAccess
 import io.element.android.libraries.matrix.test.AN_ACCOUNT_PROVIDER
 import io.element.android.libraries.matrix.test.AN_ACCOUNT_PROVIDER_2
 import io.element.android.libraries.matrix.test.AN_ACCOUNT_PROVIDER_URL
+import io.element.android.tests.testutils.lambda.lambdaError
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -140,6 +142,33 @@ class DefaultAccountProviderAccessControlTest {
             ),
         )
         accessControl.expectUnauthorizedAccountProviderException()
+    }
+
+    @Test
+    fun `an account provider is judged as a server name, not as a homeserver`() = runTest {
+        // Family Chat: a family's own domain (BYOD) is not an allowed homeserver, but may be typed or linked;
+        // where its .well-known resolves is checked later, before any credentials are sent.
+        val accessControl = createDefaultAccountProviderAccessControl(
+            enterpriseService = FakeEnterpriseService(
+                isAllowedToConnectToHomeserverResult = { false },
+                isAllowedAccountProviderResult = { true },
+                isElementProEnforcedResult = { false },
+            ),
+        )
+        accessControl.expectAllowed()
+        assertThat(accessControl.isAllowedToConnectToHomeserver("https://smith.ie")).isFalse()
+    }
+
+    @Test
+    fun `isAllowedToConnectToHomeserver delegates to the enterprise service homeserver check`() = runTest {
+        val accessControl = createDefaultAccountProviderAccessControl(
+            enterpriseService = FakeEnterpriseService(
+                isAllowedToConnectToHomeserverResult = { it == "https://smith.safechat.family" },
+                isAllowedAccountProviderResult = { lambdaError() },
+            ),
+        )
+        assertThat(accessControl.isAllowedToConnectToHomeserver("https://smith.safechat.family")).isTrue()
+        assertThat(accessControl.isAllowedToConnectToHomeserver("https://evil.com")).isFalse()
     }
 
     private fun createDefaultAccountProviderAccessControl(
