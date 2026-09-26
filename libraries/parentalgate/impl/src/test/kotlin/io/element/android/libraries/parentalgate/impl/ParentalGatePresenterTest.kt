@@ -15,9 +15,9 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 
-private val A_FIRST_CHALLENGE = ParentalGateChallenge.TypeNumber(7215)
-private val A_SECOND_CHALLENGE = ParentalGateChallenge.Multiply(left = 14, right = 7)
-private val A_THIRD_CHALLENGE = ParentalGateChallenge.TypeNumber(1001)
+private val A_FIRST_CHALLENGE = ParentalGateChallenge(left = 23, right = 7)
+private val A_SECOND_CHALLENGE = ParentalGateChallenge(left = 6, right = 47)
+private val A_THIRD_CHALLENGE = ParentalGateChallenge(left = 14, right = 9)
 
 class ParentalGatePresenterTest {
     @get:Rule
@@ -33,6 +33,7 @@ class ParentalGatePresenterTest {
             assertThat(initialState.answer).isEmpty()
             assertThat(initialState.showWrongAnswer).isFalse()
             assertThat(initialState.isPassed).isFalse()
+            assertThat(initialState.isDismissed).isFalse()
             assertThat(initialState.canSubmit).isFalse()
             assertThat(previousChallenges).containsExactly(null)
         }
@@ -41,7 +42,7 @@ class ParentalGatePresenterTest {
     @Test
     fun `present - the right answer passes the gate`() = runTest {
         createPresenter().test {
-            awaitItem().eventSink(ParentalGateEvent.UpdateAnswer(" 7215 "))
+            awaitItem().eventSink(ParentalGateEvent.UpdateAnswer(" 161 "))
             val typedState = awaitItem()
             assertThat(typedState.canSubmit).isTrue()
             typedState.eventSink(ParentalGateEvent.Submit)
@@ -56,7 +57,7 @@ class ParentalGatePresenterTest {
     fun `present - a wrong answer never passes and replaces the question with a new one`() = runTest {
         val previousChallenges = mutableListOf<ParentalGateChallenge?>()
         createPresenter(previousChallenges).test {
-            awaitItem().eventSink(ParentalGateEvent.UpdateAnswer("7216"))
+            awaitItem().eventSink(ParentalGateEvent.UpdateAnswer("162"))
             awaitItem().eventSink(ParentalGateEvent.Submit)
             val wrongState = awaitItem()
             assertThat(wrongState.isPassed).isFalse()
@@ -74,13 +75,13 @@ class ParentalGatePresenterTest {
             awaitItem().eventSink(ParentalGateEvent.UpdateAnswer("1"))
             awaitItem().eventSink(ParentalGateEvent.Submit)
             // Retrying the first question's answer on the new question is wrong, and brings a third question
-            awaitItem().eventSink(ParentalGateEvent.UpdateAnswer("7215"))
+            awaitItem().eventSink(ParentalGateEvent.UpdateAnswer("161"))
             awaitItem().eventSink(ParentalGateEvent.Submit)
             val state = awaitItem()
             assertThat(state.isPassed).isFalse()
             assertThat(state.challenge).isEqualTo(A_THIRD_CHALLENGE)
             // The new question's own answer does open it
-            state.eventSink(ParentalGateEvent.UpdateAnswer("1001"))
+            state.eventSink(ParentalGateEvent.UpdateAnswer("126"))
             awaitItem().eventSink(ParentalGateEvent.Submit)
             assertThat(awaitItem().isPassed).isTrue()
         }
@@ -104,12 +105,37 @@ class ParentalGatePresenterTest {
     @Test
     fun `present - once passed, further events are ignored`() = runTest {
         createPresenter().test {
-            awaitItem().eventSink(ParentalGateEvent.UpdateAnswer("7215"))
+            awaitItem().eventSink(ParentalGateEvent.UpdateAnswer("161"))
             awaitItem().eventSink(ParentalGateEvent.Submit)
             val passedState = awaitItem()
             passedState.eventSink(ParentalGateEvent.UpdateAnswer("0"))
             passedState.eventSink(ParentalGateEvent.Submit)
             expectNoEvents()
+        }
+    }
+
+    @Test
+    fun `present - the third wrong answer closes the gate without passing`() = runTest {
+        val previousChallenges = mutableListOf<ParentalGateChallenge?>()
+        createPresenter(previousChallenges).test {
+            repeat(2) {
+                awaitItem().eventSink(ParentalGateEvent.UpdateAnswer("1"))
+                awaitItem().eventSink(ParentalGateEvent.Submit)
+            }
+            val thirdQuestionState = awaitItem()
+            assertThat(thirdQuestionState.challenge).isEqualTo(A_THIRD_CHALLENGE)
+            assertThat(thirdQuestionState.isDismissed).isFalse()
+            thirdQuestionState.eventSink(ParentalGateEvent.UpdateAnswer("1"))
+            awaitItem().eventSink(ParentalGateEvent.Submit)
+            val dismissedState = awaitItem()
+            assertThat(dismissedState.isDismissed).isTrue()
+            assertThat(dismissedState.isPassed).isFalse()
+            assertThat(dismissedState.canSubmit).isFalse()
+            // No fourth question is drawn, and the right answer no longer opens it
+            dismissedState.eventSink(ParentalGateEvent.UpdateAnswer("126"))
+            dismissedState.eventSink(ParentalGateEvent.Submit)
+            expectNoEvents()
+            assertThat(previousChallenges).containsExactly(null, A_FIRST_CHALLENGE, A_SECOND_CHALLENGE).inOrder()
         }
     }
 

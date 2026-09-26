@@ -17,7 +17,9 @@ data class ParentalGateState(
     val showWrongAnswer: Boolean,
     /** True once the right answer was given: the gate opens and closes. */
     val isPassed: Boolean,
+    /** True after too many wrong answers: the gate closes without opening anything. */
+    val isDismissed: Boolean,
     val eventSink: (ParentalGateEvent) -> Unit,
 ) {
-    val canSubmit: Boolean = answer.isNotBlank() && !isPassed
+    val canSubmit: Boolean = answer.isNotBlank() && !isPassed && !isDismissed
 }

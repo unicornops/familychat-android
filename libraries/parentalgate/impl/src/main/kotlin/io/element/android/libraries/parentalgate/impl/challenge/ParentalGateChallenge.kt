@@ -10,23 +10,17 @@ package io.element.android.libraries.parentalgate.impl.challenge
 import androidx.compose.runtime.Immutable
 
 /**
- * One question of the parental gate. The numbers are shown in words (see [EnglishNumberWords]), the answer is typed in
- * digits: reading written-out numbers and doing the multiplication is the adult-level part.
+ * One question of the parental gate: a multiplication with both numbers written in words (see [EnglishNumberWords]),
+ * "What is twenty-three times seven?", answered in digits. Reading the written-out numbers and multiplying a two-digit
+ * number in your head is the adult-level part.
  */
 @Immutable
-sealed interface ParentalGateChallenge {
+data class ParentalGateChallenge(
+    val left: Int,
+    val right: Int,
+) {
     /** The number the user must type. */
-    val answer: Int
-
-    /** Asks to "Type the number seven thousand two hundred and fifteen in digits". */
-    data class TypeNumber(val number: Int) : ParentalGateChallenge {
-        override val answer: Int get() = number
-    }
-
-    /** Asks "What is fourteen times seven?", for example. */
-    data class Multiply(val left: Int, val right: Int) : ParentalGateChallenge {
-        override val answer: Int get() = left * right
-    }
+    val answer: Int get() = left * right
 }
 
 /** Longest answer we parse; longer input is wrong anyway and must not overflow. */

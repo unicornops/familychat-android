@@ -20,8 +20,8 @@ import io.element.android.libraries.parentalgate.impl.challenge.isAnsweredBy
 
 /**
  * A new challenge each time the gate is shown (the state is not saved, so a recreated screen asks a new question
- * too), and a new challenge after every wrong answer: the same question can never be retried until it is right.
- * There is no timer.
+ * too), and a new challenge after a wrong answer: the same question can never be retried until it is right. The
+ * [MAX_WRONG_ANSWERS]th wrong answer closes the gate. There is no timer.
  */
 @Inject
 class ParentalGatePresenter(
@@ -33,15 +33,17 @@ class ParentalGatePresenter(
 
         fun handleEvent(event: ParentalGateEvent) {
             val current = attempt
-            if (current.isPassed) return
+            if (current.isPassed || current.isDismissed) return
             attempt = when (event) {
                 is ParentalGateEvent.UpdateAnswer -> current.copy(answer = event.answer)
                 ParentalGateEvent.Submit -> when {
                     current.answer.isBlank() -> current
                     current.challenge.isAnsweredBy(current.answer) -> current.copy(isPassed = true)
+                    current.wrongAnswers + 1 >= MAX_WRONG_ANSWERS -> current.copy(answer = "", isDismissed = true)
                     else -> Attempt(
                         challenge = challengeGenerator.generate(previous = current.challenge),
                         showWrongAnswer = true,
+                        wrongAnswers = current.wrongAnswers + 1,
                     )
                 }
             }
@@ -52,6 +54,7 @@ class ParentalGatePresenter(
             answer = attempt.answer,
             showWrongAnswer = attempt.showWrongAnswer,
             isPassed = attempt.isPassed,
+            isDismissed = attempt.isDismissed,
             eventSink = ::handleEvent,
         )
     }
@@ -62,5 +65,11 @@ class ParentalGatePresenter(
         val answer: String = "",
         val showWrongAnswer: Boolean = false,
         val isPassed: Boolean = false,
+        val isDismissed: Boolean = false,
+        val wrongAnswers: Int = 0,
     )
+
+    companion object {
+        const val MAX_WRONG_ANSWERS = 3
+    }
 }

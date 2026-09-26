@@ -28,7 +28,7 @@ import io.element.android.libraries.preferences.api.store.AppPreferencesStore
 
 /**
  * The parental gate screen, started by [ParentalGate.createIntent]. It asks one question; the right answer starts the
- * guarded intent (or returns RESULT_OK), cancelling or backing out starts nothing (RESULT_CANCELED).
+ * guarded intent (or returns RESULT_OK); cancelling, backing out or three wrong answers start nothing (RESULT_CANCELED).
  */
 class ParentalGateActivity : AppCompatActivity() {
     @Inject lateinit var presenter: ParentalGatePresenter
@@ -55,8 +55,11 @@ class ParentalGateActivity : AppCompatActivity() {
                 buildMeta = buildMeta,
             ) {
                 val state = presenter.present()
-                LaunchedEffect(state.isPassed) {
-                    if (state.isPassed) onGatePassed(request)
+                LaunchedEffect(state.isPassed, state.isDismissed) {
+                    when {
+                        state.isPassed -> onGatePassed(request)
+                        state.isDismissed -> finish()
+                    }
                 }
                 ParentalGateView(
                     state = state,

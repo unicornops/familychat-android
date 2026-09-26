@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -13,6 +14,7 @@ import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.View
 import androidx.appcompat.widget.AppCompatEditText
+import io.element.android.libraries.androidutils.text.hideTextActionsThatLeaveTheApp
 
 internal class MarkdownEditText(
     context: Context,
@@ -22,6 +24,12 @@ internal class MarkdownEditText(
     var onEnterKeyListener: (() -> Boolean)? = null
 
     private var isModifyingText = false
+
+    init {
+        // Family Chat: no "Search", "Translate" or smart link actions in the selection toolbar, they leave the app
+        // without the parental gate.
+        hideTextActionsThatLeaveTheApp()
+    }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_ENTER &&

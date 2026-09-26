@@ -19,12 +19,29 @@ import org.junit.Test
  * own VIEW intent or Custom Tab instead of using them.
  */
 class KonsistParentalGateTest {
-    private val outboundIntentPattern = Regex("""\bIntent\.ACTION_VIEW\b|\bCustomTabsIntent\b|\.launchUrl\(""")
+    /**
+     * Matches the qualified, imported and aliased forms (`Intent.ACTION_VIEW`, `import android.content.Intent.ACTION_VIEW
+     * as VIEW`, `Intent.\n    ACTION_VIEW`), the raw action string, Custom Tabs, and launching another app by package.
+     * Comments count too: allow-listing a file is cheaper than a missed link.
+     */
+    private val outboundIntentPattern = Regex(
+        listOf(
+            """\bACTION_VIEW\b""",
+            """android\.intent\.action\.VIEW\b""",
+            """\bACTION_(SENDTO|DIAL|WEB_SEARCH)\b""",
+            """android\.intent\.action\.(SENDTO|DIAL|WEB_SEARCH)\b""",
+            """\bCustomTabsIntent\b""",
+            """\.launchUrl\b""",
+            """\bgetLaunchIntentForPackage\b""",
+            """\bAndroidUriHandler\b""",
+        ).joinToString("|")
+    )
 
     /** Files allowed to build VIEW intents or Custom Tabs, and why. */
     private val allowedFiles = mapOf(
         // The shared openers themselves: they hand the intent to the gate.
-        "libraries/androidutils" to setOf("SystemUtils.kt", "ChromeCustomTab.kt", "InAppLinks.kt"),
+        // TextActionsThatLeaveTheApp.kt hides those actions from text selection menus.
+        "libraries/androidutils" to setOf("SystemUtils.kt", "ChromeCustomTab.kt", "InAppLinks.kt", "TextActionsThatLeaveTheApp.kt"),
         // Reads the action of an incoming intent.
         "libraries/deeplink/impl" to setOf("DefaultDeeplinkParser.kt"),
         "appnav" to setOf("IntentResolver.kt"),
@@ -34,6 +51,8 @@ class KonsistParentalGateTest {
         "libraries/mediaviewer/impl" to setOf("AndroidLocalMediaActions.kt"),
         // Opens a maps app, through startActivityBehindParentalGate.
         "features/location/impl" to setOf("AndroidLocationActions.kt"),
+        // Launches Element Classic, through startActivityBehindParentalGate.
+        "features/login/impl" to setOf("MissingKeyBackupNode.kt"),
     )
 
     @Test

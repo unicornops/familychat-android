@@ -6,20 +6,20 @@ has to be answered first. Decision 10 in unicornops/family-chat#232, task in uni
 
 ## What the user sees
 
-A screen titled "Ask a grown-up" with one question, either
+A screen titled "Ask a grown-up" with one multiplication, both numbers written in words, for example
+"What is twenty-three times seven?". One number is from 13 to 49 and not a multiple of ten, the other a single digit
+from 3 to 9, in either order (answers 39 to 441). These are the same ranges as the iOS app. A "type this number in
+digits" question was dropped after the iOS review, because 7- and 8-year-olds can do it.
 
-- "Type the number seven thousand two hundred and fifteen in digits." (a number from 1,001 to 9,999), or
-- "What is fourteen times seven?" (a single digit from 3 to 9 times a number from 11 to 19, in either order).
-
-The numbers are always written in words. The answer is typed in digits; surrounding spaces and leading zeros are
-ignored. The right answer opens the link and closes the gate. A wrong answer replaces the question with a new one (never
-the same question or the same answer) and says so; the same question can never be retried. Cancel or back opens nothing.
-There is no timer. Every presentation, for every account, starts with a new random question (`SecureRandom`).
+The answer is typed in digits; surrounding spaces and leading zeros are ignored. The right answer opens the link and
+closes the gate. A wrong answer replaces the question with a new one (never the same question or the same answer) and
+says so; the same question can never be retried. The third wrong answer closes the gate. Cancel or back opens
+nothing. There is no timer. Every presentation, for every account, starts with a new random question (`SecureRandom`).
 
 Accessibility: the question is a heading in a polite live region, so TalkBack reads it when the screen opens and again
 when a wrong answer replaces it; all text uses the theme's `sp` typography and the page scrolls, so font scaling works.
 
-The question templates are in `impl/src/main/res/values/temporary.xml`. The numbers in words come from
+The question template is in `impl/src/main/res/values/temporary.xml`. The numbers in words come from
 `EnglishNumberWords` and are **English only**: they are not localised (a translation needs per-language number grammar,
 not string resources).
 
@@ -41,6 +41,15 @@ reach it without any call site changing. If the activity is missing from a build
 | Start any other intent that leaves the app (another app, maps, a future control-panel link, GIF attribution) | `Context.startActivityBehindParentalGate(intent, fallback)` |
 | Run something that is not an intent only for an adult (a purchase, if one is ever added) | `rememberLauncherForActivityResult(ParentalGateResultContract()) { passed -> ... }` |
 | Open a sign-in page on the family's own account provider | `Activity.openAuthenticationUrlInChromeCustomTab()`, which needs `@OptIn(ParentalGateExempt::class)` and a comment saying why |
+
+Other exits that are closed rather than gated:
+
+- **Text selection actions**: `TextView.hideTextActionsThatLeaveTheApp()` (in `androidutils/text`) turns off the text
+  classifier's smart actions (open link, call, email, map) and hides Process-Text / web search items ("Search",
+  "Translate") in the markdown composer. Compose text fields show neither. The app declares no `PROCESS_TEXT` package
+  query, so on Android 11 and later other apps' Process-Text items are not visible to it anyway.
+- **Element Call web view**: long press is disabled (no link menus, previews or text selection), and a link the user
+  taps to another site goes through `openUrlInExternalApp()` and so through the gate.
 
 **Future work that must use the gate**: the control-panel settings entry (#234 section 5) and the GIF attribution link
 (#238). A `Konsist` test (`KonsistParentalGateTest`) fails if code builds its own `Intent.ACTION_VIEW` or

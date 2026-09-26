@@ -14,22 +14,23 @@ open class ParentalGateStatePreviewParam : PreviewParameterProvider<ParentalGate
     override val values: Sequence<ParentalGateState>
         get() = sequenceOf(
             aParentalGateState(),
-            aParentalGateState(answer = "7215"),
-            aParentalGateState(challenge = ParentalGateChallenge.Multiply(left = 14, right = 7)),
-            aParentalGateState(challenge = ParentalGateChallenge.Multiply(left = 6, right = 19), showWrongAnswer = true),
+            aParentalGateState(answer = "161"),
+            aParentalGateState(challenge = ParentalGateChallenge(left = 6, right = 47), showWrongAnswer = true),
         )
 }
 
 internal fun aParentalGateState(
-    challenge: ParentalGateChallenge = ParentalGateChallenge.TypeNumber(7215),
+    challenge: ParentalGateChallenge = ParentalGateChallenge(left = 23, right = 7),
     answer: String = "",
     showWrongAnswer: Boolean = false,
     isPassed: Boolean = false,
+    isDismissed: Boolean = false,
     eventSink: (ParentalGateEvent) -> Unit = {},
 ) = ParentalGateState(
     challenge = challenge,
     answer = answer,
     showWrongAnswer = showWrongAnswer,
     isPassed = isPassed,
+    isDismissed = isDismissed,
     eventSink = eventSink,
 )

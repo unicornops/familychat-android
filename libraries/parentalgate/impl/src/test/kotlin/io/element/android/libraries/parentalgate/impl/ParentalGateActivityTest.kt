@@ -67,8 +67,9 @@ class ParentalGateActivityTest : RobolectricTest() {
             override fun inject(activity: ParentalGateActivity) {
                 val challenges = ArrayDeque(
                     listOf(
-                        ParentalGateChallenge.TypeNumber(7215),
-                        ParentalGateChallenge.Multiply(left = 14, right = 7),
+                        ParentalGateChallenge(left = 23, right = 7),
+                        ParentalGateChallenge(left = 14, right = 9),
+                        ParentalGateChallenge(left = 6, right = 47),
                     )
                 )
                 activity.presenter = ParentalGatePresenter(FakeParentalGateChallengeGenerator { challenges.removeFirst() })
@@ -90,7 +91,7 @@ class ParentalGateActivityTest : RobolectricTest() {
     @Test
     fun `showing the gate opens nothing`() = runEmptyComposeUiTest {
         ActivityScenario.launchActivityForResult<ParentalGateActivity>(gateIntent()).use { scenario ->
-            onNodeWithText(context.getString(R.string.screen_parental_gate_question_type_number, "seven thousand two hundred and fifteen"))
+            onNodeWithText(context.getString(R.string.screen_parental_gate_question_multiply, "twenty-three", "seven"))
                 .assertExists()
             scenario.onActivity { activity ->
                 assertThat(shadowOf(activity).nextStartedActivity).isNull()
@@ -102,7 +103,7 @@ class ParentalGateActivityTest : RobolectricTest() {
     @Test
     fun `the right answer opens the link and closes the gate`() = runEmptyComposeUiTest {
         ActivityScenario.launchActivityForResult<ParentalGateActivity>(gateIntent()).use { scenario ->
-            answer("7215")
+            answer("161")
             scenario.onActivity { activity ->
                 val started = shadowOf(activity).nextStartedActivity
                 assertThat(started.action).isEqualTo(Intent.ACTION_VIEW)
@@ -116,13 +117,26 @@ class ParentalGateActivityTest : RobolectricTest() {
     @Test
     fun `a wrong answer opens nothing and asks a new question`() = runEmptyComposeUiTest {
         ActivityScenario.launchActivityForResult<ParentalGateActivity>(gateIntent()).use { scenario ->
-            answer("7216")
-            onNodeWithText(context.getString(R.string.screen_parental_gate_question_multiply, "fourteen", "seven")).assertExists()
+            answer("162")
+            onNodeWithText(context.getString(R.string.screen_parental_gate_question_multiply, "fourteen", "nine")).assertExists()
             onNodeWithText(context.getString(R.string.screen_parental_gate_wrong_answer)).assertExists()
             scenario.onActivity { activity ->
                 assertThat(shadowOf(activity).nextStartedActivity).isNull()
                 assertThat(activity.isFinishing).isFalse()
             }
+        }
+    }
+
+    @Test
+    fun `three wrong answers close the gate without opening anything`() = runEmptyComposeUiTest {
+        ActivityScenario.launchActivityForResult<ParentalGateActivity>(gateIntent()).use { scenario ->
+            answer("1")
+            answer("2")
+            answer("3")
+            scenario.onActivity { activity ->
+                assertThat(shadowOf(activity).nextStartedActivity).isNull()
+            }
+            assertThat(scenario.result.resultCode).isEqualTo(Activity.RESULT_CANCELED)
         }
     }
 
@@ -140,7 +154,7 @@ class ParentalGateActivityTest : RobolectricTest() {
     @Test
     fun `without a link, passing only reports success`() = runEmptyComposeUiTest {
         ActivityScenario.launchActivityForResult<ParentalGateActivity>(ParentalGate.createIntent(context)).use { scenario ->
-            answer("7215")
+            answer("161")
             scenario.onActivity { activity ->
                 assertThat(shadowOf(activity).nextStartedActivity).isNull()
             }

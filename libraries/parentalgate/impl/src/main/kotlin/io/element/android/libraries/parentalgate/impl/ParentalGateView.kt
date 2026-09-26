@@ -123,17 +123,11 @@ fun ParentalGateView(
 
 @Composable
 private fun questionText(challenge: ParentalGateChallenge): String {
-    return when (challenge) {
-        is ParentalGateChallenge.TypeNumber -> stringResource(
-            R.string.screen_parental_gate_question_type_number,
-            EnglishNumberWords.toWords(challenge.number),
-        )
-        is ParentalGateChallenge.Multiply -> stringResource(
-            R.string.screen_parental_gate_question_multiply,
-            EnglishNumberWords.toWords(challenge.left),
-            EnglishNumberWords.toWords(challenge.right),
-        )
-    }
+    return stringResource(
+        R.string.screen_parental_gate_question_multiply,
+        EnglishNumberWords.toWords(challenge.left),
+        EnglishNumberWords.toWords(challenge.right),
+    )
 }
 
 @PreviewsDayNight

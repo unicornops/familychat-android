@@ -11,19 +11,21 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class ParentalGateChallengeTest {
-    private val typeNumber = ParentalGateChallenge.TypeNumber(47)
-    private val multiply = ParentalGateChallenge.Multiply(left = 12, right = 7)
+    // Answer 47, to exercise the parsing with a two-digit answer
+    private val typeNumber = ParentalGateChallenge(left = 47, right = 1)
+    private val multiply = ParentalGateChallenge(left = 23, right = 7)
 
     @Test
-    fun `the answer is the number, or the product`() {
-        assertThat(typeNumber.answer).isEqualTo(47)
-        assertThat(multiply.answer).isEqualTo(84)
+    fun `the answer is the product`() {
+        assertThat(multiply.answer).isEqualTo(161)
+        assertThat(ParentalGateChallenge(left = 7, right = 23).answer).isEqualTo(161)
     }
 
     @Test
     fun `the right digits are accepted`() {
         assertThat(typeNumber.isAnsweredBy("47")).isTrue()
-        assertThat(multiply.isAnsweredBy("84")).isTrue()
+        assertThat(multiply.isAnsweredBy("161")).isTrue()
+        assertThat(multiply.isAnsweredBy("160")).isFalse()
     }
 
     @Test
@@ -38,7 +40,7 @@ class ParentalGateChallengeTest {
     fun `leading zeros are ignored`() {
         assertThat(typeNumber.isAnsweredBy("047")).isTrue()
         assertThat(typeNumber.isAnsweredBy("0000047")).isTrue()
-        assertThat(ParentalGateChallenge.TypeNumber(0).isAnsweredBy("000")).isTrue()
+        assertThat(ParentalGateChallenge(left = 0, right = 9).isAnsweredBy("000")).isTrue()
     }
 
     @Test

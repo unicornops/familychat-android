@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -22,6 +23,7 @@ import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import io.element.android.features.call.impl.BuildConfig
+import io.element.android.libraries.androidutils.system.openUrlInExternalApp
 import kotlinx.coroutines.flow.MutableSharedFlow
 import timber.log.Timber
 
@@ -150,6 +152,17 @@ class WebViewWidgetMessageInterceptor(
                 }
 
                 super.onReceivedSslError(view, handler, error)
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                // Family Chat (parental gate): a link the user taps in the call page that leads to another site goes
+                // through the gate, instead of browsing that site inside the call.
+                val currentHost = view.url?.toUri()?.host
+                if (request.isForMainFrame && request.hasGesture() && request.url.host != currentHost) {
+                    view.context.openUrlInExternalApp(request.url.toString())
+                    return true
+                }
+                return false
             }
 
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? {

@@ -13,27 +13,36 @@ import kotlin.random.Random
 
 class ParentalGateChallengesTest {
     @Test
-    fun `challenges stay in their ranges and both kinds come up about as often`() {
+    fun `a challenge is a number from 13 to 49, not a multiple of ten, times a digit from 3 to 9`() {
         val random = Random(seed = 42)
         var previous: ParentalGateChallenge? = null
-        var typeNumberCount = 0
-        val iterations = 10_000
-        repeat(iterations) {
+        repeat(10_000) {
             val challenge = ParentalGateChallenges.next(random, previous)
-            when (challenge) {
-                is ParentalGateChallenge.TypeNumber -> {
-                    typeNumberCount++
-                    assertThat(challenge.number).isIn(ParentalGateChallenges.TYPE_NUMBER_RANGE)
-                }
-                is ParentalGateChallenge.Multiply -> {
-                    val operands = setOf(challenge.left, challenge.right)
-                    assertThat(operands.any { it in ParentalGateChallenges.MULTIPLY_SMALL_RANGE }).isTrue()
-                    assertThat(operands.any { it in ParentalGateChallenges.MULTIPLY_TEEN_RANGE }).isTrue()
-                }
-            }
+            val (digit, multiplicand) = listOf(challenge.left, challenge.right).sorted()
+            assertThat(digit).isIn(3..9)
+            assertThat(multiplicand).isIn(13..49)
+            assertThat(multiplicand % 10).isNotEqualTo(0)
+            assertThat(challenge.answer).isIn(39..441)
             previous = challenge
         }
-        assertThat(typeNumberCount).isIn(4_500..5_500)
+    }
+
+    @Test
+    fun `the ranges are the ones agreed with iOS`() {
+        assertThat(ParentalGateChallenges.DIGIT_RANGE).isEqualTo(3..9)
+        assertThat(ParentalGateChallenges.MULTIPLICAND_RANGE).containsExactlyElementsIn((13..49).filter { it % 10 != 0 })
+        assertThat(ParentalGateChallenges.MULTIPLICAND_RANGE).containsNoneOf(20, 30, 40)
+    }
+
+    @Test
+    fun `every multiplicand and digit comes up, in both orders`() {
+        val random = Random(seed = 3)
+        val challenges = List(20_000) { ParentalGateChallenges.next(random, null) }
+        val pairs = challenges.map { listOf(it.left, it.right).sorted() }
+        assertThat(pairs.map { it[0] }.toSet()).containsExactlyElementsIn(ParentalGateChallenges.DIGIT_RANGE.toList())
+        assertThat(pairs.map { it[1] }.toSet()).containsExactlyElementsIn(ParentalGateChallenges.MULTIPLICAND_RANGE)
+        val digitFirst = challenges.count { it.left in ParentalGateChallenges.DIGIT_RANGE }
+        assertThat(digitFirst).isIn(9_000..11_000)
     }
 
     @Test
@@ -54,15 +63,6 @@ class ParentalGateChallengesTest {
         val challenges = List(200) { ParentalGateChallenges.next(random, null) }
         assertThat(challenges.toSet().size).isGreaterThan(150)
         assertThat(challenges.map { it.answer }.toSet().size).isGreaterThan(100)
-    }
-
-    @Test
-    fun `multiplication operands come in both orders`() {
-        val random = Random(seed = 3)
-        val multiplications = List(1_000) { ParentalGateChallenges.next(random, null) }
-            .filterIsInstance<ParentalGateChallenge.Multiply>()
-        assertThat(multiplications.any { it.left in ParentalGateChallenges.MULTIPLY_SMALL_RANGE }).isTrue()
-        assertThat(multiplications.any { it.left in ParentalGateChallenges.MULTIPLY_TEEN_RANGE }).isTrue()
     }
 
     @Test

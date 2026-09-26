@@ -28,13 +28,13 @@ class DefaultParentalGateChallengeGenerator : ParentalGateChallengeGenerator {
 }
 
 /**
- * The challenge ranges. Adult-level but quick: a four-digit number written in words, or a single digit times a
- * number in the teens (products from 33 to 171).
+ * The challenge ranges, the same as the iOS app: a number from 13 to 49 that is not a multiple of ten, times a single
+ * digit from 3 to 9, in either order (answers from 39 to 441). Typing a number given in words is not asked: young
+ * children can do it.
  */
 object ParentalGateChallenges {
-    val TYPE_NUMBER_RANGE = 1_001..EnglishNumberWords.MAX
-    val MULTIPLY_SMALL_RANGE = 3..9
-    val MULTIPLY_TEEN_RANGE = 11..19
+    val MULTIPLICAND_RANGE = (13..49).filter { it % 10 != 0 }
+    val DIGIT_RANGE = 3..9
 
     fun next(random: Random, previous: ParentalGateChallenge?): ParentalGateChallenge {
         var challenge: ParentalGateChallenge
@@ -45,16 +45,12 @@ object ParentalGateChallenges {
     }
 
     private fun random(random: Random): ParentalGateChallenge {
+        val multiplicand = MULTIPLICAND_RANGE.random(random)
+        val digit = DIGIT_RANGE.random(random)
         return if (random.nextBoolean()) {
-            ParentalGateChallenge.TypeNumber(TYPE_NUMBER_RANGE.random(random))
+            ParentalGateChallenge(left = multiplicand, right = digit)
         } else {
-            val small = MULTIPLY_SMALL_RANGE.random(random)
-            val teen = MULTIPLY_TEEN_RANGE.random(random)
-            if (random.nextBoolean()) {
-                ParentalGateChallenge.Multiply(left = teen, right = small)
-            } else {
-                ParentalGateChallenge.Multiply(left = small, right = teen)
-            }
+            ParentalGateChallenge(left = digit, right = multiplicand)
         }
     }
 }
