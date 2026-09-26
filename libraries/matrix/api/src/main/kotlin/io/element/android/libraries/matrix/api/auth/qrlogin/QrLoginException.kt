@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -24,4 +25,7 @@ sealed class QrLoginException : Exception() {
     data object ContinuationCannotBeSent : QrLoginException()
     data object UnsupportedQrCodeType : QrLoginException()
     data object Unknown : QrLoginException()
+
+    /** Family Chat: the code is from a device signed in to a homeserver outside the allowlist. */
+    data object HomeserverNotAllowed : QrLoginException()
 }

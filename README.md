@@ -40,7 +40,8 @@ There is deliberately **no** private enterprise overlay: everything is rebranded
   colours (teal `#0D9488`, accent `#F97316`).
 * Sign-in locked to family servers under `safechat.family`: a server name (a family's own domain
   included) is accepted only if its `.well-known` resolves to an `https://*.safechat.family` homeserver, checked
-  before any credentials are sent. The server picker and account creation are hidden: accounts are created by a
+  before a password is sent or an OAuth sign-in starts, and again after login. The check is on the homeserver,
+  not on the OAuth issuer it advertises. The server picker and account creation are hidden: accounts are created by a
   parent in the control panel.
 * App Links on `safechat.family/app/...`; Element's `*.element.io` link handling removed.
 * Website, privacy, terms and OAuth client metadata point at `safechat.family`.

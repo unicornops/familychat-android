@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -73,6 +74,7 @@ private fun titleText(errorScreenType: QrCodeErrorScreenType, appName: String) =
     QrCodeErrorScreenType.InsecureChannelDetected -> stringResource(id = R.string.screen_qr_code_login_connection_note_secure_state_title)
     QrCodeErrorScreenType.SlidingSyncNotAvailable -> stringResource(id = R.string.screen_qr_code_login_error_sliding_sync_not_supported_title, appName)
     is QrCodeErrorScreenType.UnknownError -> stringResource(CommonStrings.common_something_went_wrong)
+    QrCodeErrorScreenType.HomeserverNotAllowed -> stringResource(R.string.screen_change_server_error_not_a_family_chat_server)
 }
 
 @Composable
@@ -84,6 +86,7 @@ private fun subtitleText(errorScreenType: QrCodeErrorScreenType, appName: String
     QrCodeErrorScreenType.InsecureChannelDetected -> stringResource(id = R.string.screen_qr_code_login_connection_note_secure_state_description)
     QrCodeErrorScreenType.SlidingSyncNotAvailable -> stringResource(id = R.string.screen_qr_code_login_error_sliding_sync_not_supported_subtitle, appName)
     is QrCodeErrorScreenType.UnknownError -> stringResource(R.string.screen_qr_code_login_unknown_error_description)
+    QrCodeErrorScreenType.HomeserverNotAllowed -> stringResource(R.string.screen_qr_code_login_error_homeserver_not_allowed_subtitle)
 }
 
 @Composable

@@ -11,17 +11,21 @@ package io.element.android.libraries.matrix.impl.auth
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.enterprise.api.EnterpriseService
-import io.element.android.features.enterprise.test.FakeEnterpriseService
+import io.element.android.features.enterprise.impl.DefaultEnterpriseService
 import io.element.android.libraries.featureflag.test.FakeFeatureFlagService
 import io.element.android.libraries.matrix.api.auth.AuthenticationException
 import io.element.android.libraries.matrix.api.auth.OAuthPrompt
 import io.element.android.libraries.matrix.api.auth.SignInCodeException
+import io.element.android.libraries.matrix.api.auth.qrlogin.QrLoginException
 import io.element.android.libraries.matrix.impl.ClientBuilderProvider
 import io.element.android.libraries.matrix.impl.FakeClientBuilderProvider
+import io.element.android.libraries.matrix.impl.auth.qrlogin.SdkQrCodeLoginData
 import io.element.android.libraries.matrix.impl.createRustMatrixClientFactory
 import io.element.android.libraries.matrix.impl.fixtures.fakes.FakeFfiClient
 import io.element.android.libraries.matrix.impl.fixtures.fakes.FakeFfiClientBuilder
 import io.element.android.libraries.matrix.impl.fixtures.fakes.FakeFfiHomeserverLoginDetails
+import io.element.android.libraries.matrix.impl.fixtures.fakes.FakeFfiLoginWithQrCodeHandler
+import io.element.android.libraries.matrix.impl.fixtures.fakes.FakeFfiQrCodeData
 import io.element.android.libraries.matrix.impl.paths.SessionPathsFactory
 import io.element.android.libraries.matrix.test.A_DEVICE_ID
 import io.element.android.libraries.matrix.test.A_SESSION_ID
@@ -44,6 +48,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import org.matrix.rustcomponents.sdk.LoginWithQrCodeHandler
 import java.io.File
 
 class RustMatrixAuthenticationServiceTest {
@@ -326,6 +331,180 @@ class RustMatrixAuthenticationServiceTest {
     }
 
     @Test
+    fun `setHomeserver refuses a resolved URL that only looks like a family server`() = runTest {
+        listOf("https://evil.com/x.safechat.family", "https://evil.com?.safechat.family", "https://safechat.family/").forEach { resolved ->
+            val sut = createRustMatrixAuthenticationService(
+                clientBuilderProvider = aDiscoveringClientBuilderProvider(homeserverResult = { resolved }),
+            )
+
+            assertThat(sut.setHomeserver("smith.ie").exceptionOrNull()).isInstanceOf(AuthenticationException.HomeserverNotAllowed::class.java)
+        }
+    }
+
+    @Test
+    fun `login refuses a client whose homeserver is not allowed, without sending the password`() = runTest {
+        var homeserver = A_FAMILY_HOMESERVER_URL
+        val loginResult = lambdaRecorder<String, String, Unit> { _, _ -> }
+        val sut = createRustMatrixAuthenticationService(
+            clientBuilderProvider = aDiscoveringClientBuilderProvider(homeserverResult = { homeserver }, loginResult = loginResult),
+        )
+        assertThat(sut.setHomeserver("smith.ie").isSuccess).isTrue()
+        // The client the password would go through now points outside the allowlist
+        homeserver = "https://evil.com/"
+
+        val result = sut.login("@kid:smith.ie", "a password")
+
+        assertThat(result.exceptionOrNull()).isInstanceOf(AuthenticationException.HomeserverNotAllowed::class.java)
+        loginResult.assertions().isNeverCalled()
+    }
+
+    @Test
+    fun `getOAuthUrl refuses a client whose homeserver is not allowed`() = runTest {
+        var homeserver = A_FAMILY_HOMESERVER_URL
+        val sut = createRustMatrixAuthenticationService(
+            clientBuilderProvider = aDiscoveringClientBuilderProvider(homeserverResult = { homeserver }),
+        )
+        assertThat(sut.setHomeserver("smith.ie").isSuccess).isTrue()
+        homeserver = "https://evil.com/"
+
+        val result = sut.getOAuthUrl(prompt = OAuthPrompt.Login, loginHint = null)
+
+        assertThat(result.exceptionOrNull()).isInstanceOf(AuthenticationException.HomeserverNotAllowed::class.java)
+    }
+
+    @Test
+    fun `loginWithOAuth refuses a client whose homeserver is not allowed, without sending the callback`() = runTest {
+        var homeserver = A_FAMILY_HOMESERVER_URL
+        val loginWithOauthCallbackResult = lambdaRecorder<String, Unit> { }
+        val sut = createRustMatrixAuthenticationService(
+            clientBuilderProvider = aDiscoveringClientBuilderProvider(
+                homeserverResult = { homeserver },
+                loginWithOauthCallbackResult = loginWithOauthCallbackResult,
+            ),
+        )
+        assertThat(sut.setHomeserver("smith.ie").isSuccess).isTrue()
+        homeserver = "https://evil.com/"
+
+        val result = sut.loginWithOAuth("https://callback?code=a_code")
+
+        assertThat(result.exceptionOrNull()).isInstanceOf(AuthenticationException.HomeserverNotAllowed::class.java)
+        loginWithOauthCallbackResult.assertions().isNeverCalled()
+    }
+
+    @Test
+    fun `login refuses a session re-pointed outside the allowlist by the login response, and signs it out`() = runTest {
+        var homeserver = A_FAMILY_HOMESERVER_URL
+        val logoutResult = lambdaRecorder<Unit> { }
+        val sessionStore = InMemorySessionStore()
+        val sut = createRustMatrixAuthenticationService(
+            sessionStore = sessionStore,
+            clientBuilderProvider = aDiscoveringClientBuilderProvider(
+                homeserverResult = { homeserver },
+                // The login response's well_known re-points the client (respect_login_well_known)
+                loginResult = { _, _ -> homeserver = "https://evil.com/" },
+                logoutResult = logoutResult,
+            ),
+        )
+        assertThat(sut.setHomeserver("smith.ie").isSuccess).isTrue()
+
+        val result = sut.login("@kid:smith.ie", "a password")
+
+        assertThat(result.exceptionOrNull()).isInstanceOf(AuthenticationException.HomeserverNotAllowed::class.java)
+        logoutResult.assertions().isCalledOnce()
+        assertThat(sessionStore.getAllSessions()).isEmpty()
+    }
+
+    @Test
+    fun `loginWithOAuth refuses a session re-pointed outside the allowlist, and signs it out`() = runTest {
+        var homeserver = A_FAMILY_HOMESERVER_URL
+        val logoutResult = lambdaRecorder<Unit> { }
+        val sessionStore = InMemorySessionStore()
+        val sut = createRustMatrixAuthenticationService(
+            sessionStore = sessionStore,
+            clientBuilderProvider = aDiscoveringClientBuilderProvider(
+                homeserverResult = { homeserver },
+                loginWithOauthCallbackResult = { homeserver = "https://evil.com/" },
+                logoutResult = logoutResult,
+            ),
+        )
+        assertThat(sut.setHomeserver("smith.ie").isSuccess).isTrue()
+
+        val result = sut.loginWithOAuth("https://callback?code=a_code")
+
+        assertThat(result.exceptionOrNull()).isInstanceOf(AuthenticationException.HomeserverNotAllowed::class.java)
+        logoutResult.assertions().isCalledOnce()
+        assertThat(sessionStore.getAllSessions()).isEmpty()
+    }
+
+    @Test
+    fun `loginWithQrCode refuses a code from a device on a homeserver outside the allowlist, before any exchange`() = runTest {
+        val newLoginWithQrCodeHandlerResult = lambdaRecorder<LoginWithQrCodeHandler> { FakeFfiLoginWithQrCodeHandler() }
+        val sut = createRustMatrixAuthenticationService(
+            clientBuilderProvider = aDiscoveringClientBuilderProvider(
+                homeserverResult = { "https://evil.com/" },
+                newLoginWithQrCodeHandlerResult = newLoginWithQrCodeHandlerResult,
+            ),
+        )
+
+        val result = sut.loginWithQrCode(aQrCodeLoginData("https://evil.com")) {}
+
+        assertThat(result.exceptionOrNull()).isEqualTo(QrLoginException.HomeserverNotAllowed)
+        newLoginWithQrCodeHandlerResult.assertions().isNeverCalled()
+    }
+
+    @Test
+    fun `loginWithQrCode refuses a session re-pointed outside the allowlist during the exchange, and signs it out`() = runTest {
+        var homeserver = A_FAMILY_HOMESERVER_URL
+        val logoutResult = lambdaRecorder<Unit> { }
+        val sessionStore = InMemorySessionStore()
+        val sut = createRustMatrixAuthenticationService(
+            sessionStore = sessionStore,
+            clientBuilderProvider = aDiscoveringClientBuilderProvider(
+                homeserverResult = { homeserver },
+                logoutResult = logoutResult,
+                newLoginWithQrCodeHandlerResult = {
+                    FakeFfiLoginWithQrCodeHandler(scanResult = { homeserver = "https://evil.com/" })
+                },
+            ),
+        )
+
+        val result = sut.loginWithQrCode(aQrCodeLoginData(A_FAMILY_HOMESERVER_URL)) {}
+
+        assertThat(result.exceptionOrNull()).isEqualTo(QrLoginException.HomeserverNotAllowed)
+        logoutResult.assertions().isCalledOnce()
+        assertThat(sessionStore.getAllSessions()).isEmpty()
+    }
+
+    @Test
+    fun `loginWithToken refuses a client that no longer points at an allowed homeserver, and signs the device out`() = runTest {
+        val logoutResult = lambdaRecorder<String, String, Unit> { _, _ -> }
+        val sessionStore = InMemorySessionStore()
+        val sut = createRustMatrixAuthenticationService(
+            sessionStore = sessionStore,
+            clientBuilderProvider = FakeClientBuilderProvider(
+                provideResult = {
+                    FakeFfiClientBuilder(buildResult = { FakeFfiClient(homeserverResult = { "https://evil.com/" }, withUtdHook = {}) })
+                }
+            ),
+            loginTokenExchanger = FakeLoginTokenExchanger(
+                exchangeResult = { _, _, _ -> aLoginTokenCredentials() },
+                logoutResult = logoutResult,
+            ),
+        )
+
+        val result = sut.loginWithToken(
+            homeserverUrl = "https://smith.safechat.family",
+            token = "syl_token",
+            expectedUserId = A_USER_ID.value,
+            accountProvider = "server.org",
+        )
+
+        assertThat(result.exceptionOrNull()).isInstanceOf(SignInCodeException.HomeserverNotAllowed::class.java)
+        assertThat(sessionStore.getAllSessions()).isEmpty()
+        logoutResult.assertions().isCalledOnce().with(value("https://smith.safechat.family"), value("syt_access"))
+    }
+
+    @Test
     fun `loginWithToken completes even when the caller is cancelled`() = runTest {
         val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> })
         val exchangeStarted = CompletableDeferred<Unit>()
@@ -364,12 +543,8 @@ class RustMatrixAuthenticationServiceTest {
     private fun TestScope.createRustMatrixAuthenticationService(
         sessionStore: SessionStore = InMemorySessionStore(),
         clientBuilderProvider: ClientBuilderProvider = FakeClientBuilderProvider(),
-        enterpriseService: EnterpriseService = FakeEnterpriseService(
-            // The Family Chat rule for a resolved homeserver: https, and a family subdomain of safechat.family
-            isAllowedResolvedHomeserverUrlResult = { url ->
-                url.startsWith("https://") && url.removePrefix("https://").removeSuffix("/").endsWith(".safechat.family")
-            },
-        ),
+        // The real Family Chat rules, not a copy of them
+        enterpriseService: EnterpriseService = DefaultEnterpriseService(),
         loginTokenExchanger: LoginTokenExchanger = FakeLoginTokenExchanger(),
     ): RustMatrixAuthenticationService {
         val baseDirectory = File("/base")
@@ -409,10 +584,36 @@ private fun aLoginTokenCredentials(userId: String = A_USER_ID.value) = LoginToke
     refreshToken = null,
 )
 
+private fun aDiscoveringClientBuilderProvider(
+    homeserverResult: () -> String,
+    loginResult: (String, String) -> Unit = { _, _ -> lambdaError() },
+    loginWithOauthCallbackResult: (String) -> Unit = { lambdaError() },
+    logoutResult: () -> Unit = { lambdaError() },
+    newLoginWithQrCodeHandlerResult: () -> LoginWithQrCodeHandler = { lambdaError() },
+) = FakeClientBuilderProvider(
+    provideResult = {
+        FakeFfiClientBuilder(
+            buildResult = {
+                FakeFfiClient(
+                    homeserverResult = homeserverResult,
+                    homeserverLoginDetailsResult = { FakeFfiHomeserverLoginDetails() },
+                    loginResult = loginResult,
+                    loginWithOauthCallbackResult = loginWithOauthCallbackResult,
+                    logoutResult = logoutResult,
+                    newLoginWithQrCodeHandlerResult = newLoginWithQrCodeHandlerResult,
+                    withUtdHook = {},
+                )
+            },
+        )
+    }
+)
+
+private fun aQrCodeLoginData(baseUrl: String) = SdkQrCodeLoginData(FakeFfiQrCodeData(baseUrlResult = { baseUrl }))
+
 private fun aClientBuilderProvider(closeResult: () -> Unit = {}) = FakeClientBuilderProvider(
     provideResult = {
         FakeFfiClientBuilder(
-            buildResult = { FakeFfiClient(withUtdHook = {}, closeResult = closeResult) }
+            buildResult = { FakeFfiClient(homeserver = A_FAMILY_HOMESERVER_URL, withUtdHook = {}, closeResult = closeResult) }
         )
     }
 )

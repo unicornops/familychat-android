@@ -26,10 +26,12 @@ import org.matrix.rustcomponents.sdk.Encryption
 import org.matrix.rustcomponents.sdk.HomeserverCapabilities
 import org.matrix.rustcomponents.sdk.HomeserverLoginDetails
 import org.matrix.rustcomponents.sdk.IgnoredUsersListener
+import org.matrix.rustcomponents.sdk.LoginWithQrCodeHandler
 import org.matrix.rustcomponents.sdk.NoHandle
 import org.matrix.rustcomponents.sdk.NotificationClient
 import org.matrix.rustcomponents.sdk.NotificationProcessSetup
 import org.matrix.rustcomponents.sdk.NotificationSettings
+import org.matrix.rustcomponents.sdk.OAuthConfiguration
 import org.matrix.rustcomponents.sdk.ProfileListener
 import org.matrix.rustcomponents.sdk.PusherIdentifiers
 import org.matrix.rustcomponents.sdk.PusherKind
@@ -70,10 +72,18 @@ class FakeFfiClient(
     private val contentScannerResult: () -> ContentScanner = { FakeFfiContentScanner() },
     private val closeResult: () -> Unit = {},
     private val loginResult: (username: String, password: String) -> Unit = { _, _ -> lambdaError() },
+    // The homeserver can change over the client's life (the SDK follows a login response's well_known).
+    private val homeserverResult: () -> String = { homeserver },
+    private val loginWithOauthCallbackResult: (String) -> Unit = { lambdaError() },
+    private val logoutResult: () -> Unit = { lambdaError() },
+    private val newLoginWithQrCodeHandlerResult: () -> LoginWithQrCodeHandler = { lambdaError() },
 ) : Client(NoHandle) {
     override fun userId(): String = userId
     override fun deviceId(): String = deviceId
-    override fun homeserver(): String = homeserver
+    override fun homeserver(): String = homeserverResult()
+    override suspend fun loginWithOauthCallback(callbackUrl: String) = loginWithOauthCallbackResult(callbackUrl)
+    override suspend fun logout() = logoutResult()
+    override fun newLoginWithQrCodeHandler(oauthConfiguration: OAuthConfiguration): LoginWithQrCodeHandler = newLoginWithQrCodeHandlerResult()
     override fun server(): String? = server
     override suspend fun notificationClient(processSetup: NotificationProcessSetup) = notificationClient
     override suspend fun getNotificationSettings(): NotificationSettings = notificationSettings

@@ -35,6 +35,7 @@ import io.element.android.libraries.matrix.test.A_HOMESERVER_URL
 import io.element.android.libraries.matrix.test.A_HOMESERVER_URL_2
 import io.element.android.libraries.matrix.test.A_LOGIN_HINT
 import io.element.android.libraries.matrix.test.auth.FakeMatrixAuthenticationService
+import io.element.android.libraries.matrix.test.auth.aMatrixHomeServerDetails
 import io.element.android.libraries.matrix.test.core.aBuildMeta
 import io.element.android.libraries.oauth.api.OAuthActionFlow
 import io.element.android.libraries.oauth.test.FakeOAuthActionFlow
@@ -305,6 +306,39 @@ class OnBoardingPresenterTest {
             val failure = consumeItemsUntilPredicate { it.loginModeState.loginMode is AsyncData.Failure }.last()
             assertThat(failure.loginModeState.loginMode.errorOrNull()).isEqualTo(ChangeServerError.HomeserverNotAllowed)
             setHomeserverResult.assertions().isCalledOnce().with(value("smith.ie"))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - the password fallback after a sign-in code signs in to the account provider with the login hint`() = runTest {
+        val setHomeserverResult = lambdaRecorder<String, Result<MatrixHomeServerDetails>> {
+            Result.success(aMatrixHomeServerDetails(url = "https://smith.safechat.family", supportsOAuthLogin = true))
+        }
+        val authenticationService = FakeMatrixAuthenticationService(setHomeserverResult = setHomeserverResult)
+        val presenter = createPresenter(
+            // What LoginFlowNode hands over after a declined, failed or lost code: the account provider, never `hs`
+            params = OnBoardingNode.Params(
+                accountProvider = "smith.ie",
+                loginHint = "mxid:@kid:smith.ie",
+                showBackButton = false,
+            ),
+            enterpriseService = FakeEnterpriseService(
+                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
+                forcedAccountProviderResult = { null },
+                isAllowedToConnectToHomeserverResult = { false },
+                isAllowedAccountProviderResult = { it == "smith.ie" },
+                isElementProEnforcedResult = { false },
+            ),
+            loginModePresenter = createLoginModePresenter(authenticationService = authenticationService),
+        )
+        presenter.test {
+            val state = consumeItemsUntilPredicate { it.defaultAccountProvider == "smith.ie" }.last()
+            state.eventSink(OnBoardingEvent.OnSignIn("smith.ie"))
+            consumeItemsUntilPredicate { it.loginModeState.loginMode is AsyncData.Success }
+            setHomeserverResult.assertions().isCalledOnce().with(value("smith.ie"))
+            // The hint goes back onto the provider it belongs to
+            assertThat(authenticationService.getOAuthUrlLoginHint).isEqualTo("mxid:@kid:smith.ie")
             cancelAndIgnoreRemainingEvents()
         }
     }

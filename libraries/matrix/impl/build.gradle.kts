@@ -54,6 +54,7 @@ dependencies {
     testCommonDependencies(libs)
     testImplementation(platform(libs.network.okhttp.bom))
     testImplementation(libs.network.mockwebserver)
+    testImplementation(projects.features.enterprise.implFoss)
     testImplementation(projects.features.enterprise.test)
     testImplementation(projects.libraries.featureflag.test)
     testImplementation(projects.libraries.matrix.test)

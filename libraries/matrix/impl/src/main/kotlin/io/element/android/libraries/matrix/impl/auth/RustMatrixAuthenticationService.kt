@@ -179,6 +179,8 @@ class RustMatrixAuthenticationService(
                     initialDeviceName = INITIAL_DEVICE_NAME,
                     deviceId = null,
                 )
+                // The login response's well_known can re-point the client: check again before keeping the session.
+                client.ensureStillAllowedHomeserverAfterLogin()
                 // Ensure that the user is not already logged in with the same account
                 ensureNotAlreadyLoggedIn(client)
                 tryToImportSecretForElementClassicSession(client)
@@ -277,6 +279,12 @@ class RustMatrixAuthenticationService(
                     slidingSyncVersion = SlidingSyncVersion.NATIVE,
                 )
             )
+            // As after any login, the client must still point at an allowed homeserver. The failure path below
+            // signs the new device out.
+            if (!enterpriseService.isAllowedResolvedHomeserverUrl(newClient.homeserver())) {
+                Timber.w("Sign-in code refused: the client no longer points at an allowed homeserver")
+                throw SignInCodeException.HomeserverNotAllowed()
+            }
             // Ensure that the user is not already logged in with the same account
             ensureNotAlreadyLoggedIn(newClient)
             val sessionData = newClient.session()
@@ -323,6 +331,22 @@ class RustMatrixAuthenticationService(
         val resolvedHomeserverUrl = homeserver()
         if (!enterpriseService.isAllowedResolvedHomeserverUrl(resolvedHomeserverUrl)) {
             Timber.w("Refusing to sign in: the server resolved to a homeserver outside the allowlist ($resolvedHomeserverUrl)")
+            throw AuthenticationException.HomeserverNotAllowed(resolvedHomeserverUrl)
+        }
+    }
+
+    /**
+     * Family Chat: the SDK may re-point the client at the homeserver named by the login response's `well_known`
+     * (`respect_login_well_known`, on by default and not exposed over FFI). Check the homeserver again once logged
+     * in, before the session is kept; on a mismatch sign the new device out (best effort) and drop the client.
+     */
+    @Throws(AuthenticationException.HomeserverNotAllowed::class)
+    private suspend fun Client.ensureStillAllowedHomeserverAfterLogin() {
+        val resolvedHomeserverUrl = homeserver()
+        if (!enterpriseService.isAllowedResolvedHomeserverUrl(resolvedHomeserverUrl)) {
+            Timber.w("Refusing the new session: the login re-pointed the client outside the allowlist ($resolvedHomeserverUrl)")
+            runCatchingExceptions { logout() }
+            clear(destroyClient = true)
             throw AuthenticationException.HomeserverNotAllowed(resolvedHomeserverUrl)
         }
     }
@@ -439,6 +463,7 @@ class RustMatrixAuthenticationService(
                 client.loginWithOauthCallback(
                     callbackUrl = callbackUrl,
                 )
+                client.ensureStillAllowedHomeserverAfterLogin()
                 // Free the pending data since we won't use it to abort the flow anymore
                 pendingOAuthAuthorizationData?.close()
                 pendingOAuthAuthorizationData = null
@@ -507,7 +532,8 @@ class RustMatrixAuthenticationService(
                 if (!enterpriseService.isAllowedResolvedHomeserverUrl(client.homeserver())) {
                     Timber.w("QR code login refused: its homeserver is outside the allowlist")
                     client.close()
-                    throw QrLoginException.Unknown
+                    emptySessionPaths.deleteRecursively()
+                    throw QrLoginException.HomeserverNotAllowed
                 }
                 client.newLoginWithQrCodeHandler(
                     oauthConfiguration = oAuthConfiguration,
@@ -516,6 +542,13 @@ class RustMatrixAuthenticationService(
                         qrCodeData = qrCodeData.rustQrCodeData,
                         progressListener = progressListener,
                     )
+                }
+                if (!enterpriseService.isAllowedResolvedHomeserverUrl(client.homeserver())) {
+                    Timber.w("QR code login refused: the homeserver changed to one outside the allowlist during login")
+                    runCatchingExceptions { client.logout() }
+                    client.close()
+                    emptySessionPaths.deleteRecursively()
+                    throw QrLoginException.HomeserverNotAllowed
                 }
                 // Ensure that the user is not already logged in with the same account
                 ensureNotAlreadyLoggedIn(client)

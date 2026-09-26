@@ -86,12 +86,27 @@ class LoginFlowNode(
     data class Params(
         val accountProvider: String?,
         val loginHint: String?,
-        /** The host a sign-in code is redeemed against, and the server the password fallback then uses. */
+        /**
+         * The host a sign-in code is redeemed against. It is trusted for the code only (the redeemed account is bound
+         * to [accountProvider]); a password never goes there, see [toOnBoardingParams].
+         */
         val hs: String? = null,
         /** Names the sign-in code in [SignInCodeStore]; the token itself is never part of the node inputs. */
         val signInCodeId: String? = null,
     ) : NodeInputs {
         fun hasSignInCode(signInCodeStore: SignInCodeStore): Boolean = !hs.isNullOrBlank() && signInCodeStore.contains(signInCodeId)
+
+        /**
+         * The sign-in screen shown after a sign-in code was declined, failed, or is gone (process death): the password
+         * form for [accountProvider], resolved through `.well-known` discovery and the allowlist backstop, with the
+         * login hint. Never [hs], not even when discovery fails: a link can name any family server as `hs`, and a
+         * password there would reach another family (unicornops/family-chat#254, rule 2).
+         */
+        fun toOnBoardingParams(showBackButton: Boolean) = OnBoardingNode.Params(
+            accountProvider = accountProvider,
+            loginHint = loginHint,
+            showBackButton = showBackButton,
+        )
     }
 
     private val callback: LoginEntryPoint.Callback = callback()
@@ -161,7 +176,8 @@ class LoginFlowNode(
             NavTarget.TokenLogin -> {
                 val params = inputs<Params>()
                 val hs = params.hs
-                if (hs.isNullOrBlank() || !params.hasSignInCode(signInCodeStore)) {
+                val accountProvider = params.accountProvider
+                if (hs.isNullOrBlank() || accountProvider.isNullOrBlank() || !params.hasSignInCode(signInCodeStore)) {
                     // No code any more (the process was recreated, or it expired): this is the plain password flow.
                     return resolve(NavTarget.CheckClassicFlow, buildContext)
                 }
@@ -175,7 +191,7 @@ class LoginFlowNode(
                 val inputs = TokenLoginNode.Inputs(
                     hs = hs,
                     // The family's server name; for a family on its own domain, not the host the code goes to.
-                    accountProvider = params.accountProvider ?: hs,
+                    accountProvider = accountProvider,
                     loginHint = params.loginHint,
                     signInCodeId = params.signInCodeId.orEmpty(),
                 )
@@ -247,14 +263,7 @@ class LoginFlowNode(
                         }
                     }
                 }
-                val params = inputs<Params>()
-                val inputs = OnBoardingNode.Params(
-                    // After a sign-in code, the password fallback goes to the host the code was for: for a family
-                    // with its own domain, `account_provider` only serves the well-known documents.
-                    accountProvider = params.hs ?: params.accountProvider,
-                    loginHint = params.loginHint,
-                    showBackButton = navTarget.showBackButton,
-                )
+                val inputs = inputs<Params>().toOnBoardingParams(showBackButton = navTarget.showBackButton)
                 createNode<OnBoardingNode>(buildContext, listOf(callback, inputs))
             }
             NavTarget.AppDeveloperSettings -> {
