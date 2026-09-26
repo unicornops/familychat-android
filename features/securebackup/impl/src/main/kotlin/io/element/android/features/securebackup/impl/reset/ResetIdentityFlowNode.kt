@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2024, 2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -28,7 +29,7 @@ import io.element.android.compound.theme.ElementTheme
 import io.element.android.features.enterprise.api.SessionEnterpriseService
 import io.element.android.features.securebackup.impl.reset.password.ResetIdentityPasswordNode
 import io.element.android.features.securebackup.impl.reset.root.ResetIdentityRootNode
-import io.element.android.libraries.androidutils.browser.openUrlInChromeCustomTab
+import io.element.android.libraries.androidutils.browser.openAuthenticationUrlInChromeCustomTab
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
@@ -39,6 +40,7 @@ import io.element.android.libraries.di.SessionScope
 import io.element.android.libraries.di.annotations.SessionCoroutineScope
 import io.element.android.libraries.matrix.api.encryption.IdentityOAuthResetHandle
 import io.element.android.libraries.matrix.api.encryption.IdentityPasswordResetHandle
+import io.element.android.libraries.parentalgate.api.ParentalGateExempt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
@@ -106,6 +108,8 @@ class ResetIdentityFlowNode(
         }
     }
 
+    // Approving the identity reset on the family's account provider: authentication, not a link out, so no parental gate.
+    @OptIn(ParentalGateExempt::class)
     private fun CoroutineScope.startReset() = launch {
         // Instead of cancelling the reset job on every ON_START, we can do it before starting a new attempt
         cancelResetJob()
@@ -128,7 +132,7 @@ class ResetIdentityFlowNode(
                     is IdentityOAuthResetHandle -> {
                         Timber.d("Launching reset confirmation in MAS")
                         val url = sessionEnterpriseService.tweakMasUrl(handle.url)
-                        activity.openUrlInChromeCustomTab(null, darkTheme, url)
+                        activity.openAuthenticationUrlInChromeCustomTab(null, darkTheme, url)
                         Timber.d("Starting resetOAuth")
                         resetJob = launch { handle.resetOAuth() }
                         resetJob?.invokeOnCompletion { Timber.d("resetOAuth ended") }

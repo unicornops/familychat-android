@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -24,6 +25,7 @@ import androidx.core.net.toUri
 import io.element.android.libraries.androidutils.R
 import io.element.android.libraries.androidutils.compat.getApplicationInfoCompat
 import io.element.android.libraries.core.mimetype.MimeTypes
+import io.element.android.libraries.parentalgate.api.startActivityBehindParentalGate
 
 /**
  * Return the application label of the provided package. If not found, the package is returned.
@@ -162,38 +164,38 @@ fun Context.startSharePlainTextIntent(
     }
 }
 
-@Suppress("SwallowedException")
+/**
+ * Open [url] in another app (browser, mail, dialler...), behind the parental gate: nothing opens until an adult has
+ * answered the gate's question. A link the app handles itself (see [openInAppIfHandled]) opens in-app, without the gate.
+ * See `libraries/parentalgate/README.md`.
+ *
+ * @param url the link to open.
+ * @param errorMessage shown if no app can open the link, once the gate is passed.
+ */
 fun Context.openUrlInExternalApp(
     url: String,
     errorMessage: String = getString(R.string.error_no_compatible_app_found),
-    throwInCaseOfError: Boolean = false,
 ) {
-    val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-    if (this !is Activity) {
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    try {
-        startActivity(intent)
-    } catch (activityNotFoundException: ActivityNotFoundException) {
-        if (throwInCaseOfError) throw activityNotFoundException
-        toast(errorMessage)
-    }
+    val uri = url.toUri()
+    if (openInAppIfHandled(uri)) return
+    startActivityBehindParentalGate(
+        target = Intent(Intent.ACTION_VIEW, uri),
+        noActivityFoundMessage = errorMessage,
+    )
 }
 
 /**
- * Open Google Play on the provided application Id.
+ * Open Google Play on the provided application Id, behind the parental gate.
+ * Falls back to the Play Store web page if no store app is installed.
  */
 fun Context.openGooglePlay(
     appId: String,
 ) {
-    try {
-        openUrlInExternalApp(
-            url = "market://details?id=$appId",
-            throwInCaseOfError = true,
-        )
-    } catch (_: ActivityNotFoundException) {
-        openUrlInExternalApp("https://play.google.com/store/apps/details?id=$appId")
-    }
+    startActivityBehindParentalGate(
+        target = Intent(Intent.ACTION_VIEW, "market://details?id=$appId".toUri()),
+        fallback = Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$appId".toUri()),
+        noActivityFoundMessage = getString(R.string.error_no_compatible_app_found),
+    )
 }
 
 // Not in KTX anymore

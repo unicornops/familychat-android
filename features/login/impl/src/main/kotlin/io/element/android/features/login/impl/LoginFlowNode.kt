@@ -41,7 +41,7 @@ import io.element.android.features.login.impl.screens.onboarding.OnBoardingNode
 import io.element.android.features.login.impl.screens.tokenlogin.TokenLoginNode
 import io.element.android.features.login.impl.tokenlogin.SignInCodeStore
 import io.element.android.features.preferences.api.PreferencesEntryPoint
-import io.element.android.libraries.androidutils.browser.openUrlInChromeCustomTab
+import io.element.android.libraries.androidutils.browser.openAuthenticationUrlInChromeCustomTab
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.NodeInputs
@@ -53,6 +53,7 @@ import io.element.android.libraries.matrix.api.auth.OAuthDetails
 import io.element.android.libraries.matrix.api.core.MatrixPatterns
 import io.element.android.libraries.oauth.api.OAuthAction
 import io.element.android.libraries.oauth.api.OAuthActionFlow
+import io.element.android.libraries.parentalgate.api.ParentalGateExempt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -327,10 +328,12 @@ class LoginFlowNode(
         ?.removePrefix("mxid:")
         ?.takeIf { MatrixPatterns.isUserId(it) }
 
+    // Sign-in on the family's account provider: authentication, not a link out, so no parental gate.
+    @OptIn(ParentalGateExempt::class)
     private fun navigateToMas(oAuthDetails: OAuthDetails) {
         activity?.let {
             externalAppStarted = true
-            it.openUrlInChromeCustomTab(null, darkTheme, oAuthDetails.url)
+            it.openAuthenticationUrlInChromeCustomTab(null, darkTheme, oAuthDetails.url)
         }
     }
 

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2022-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -96,6 +97,7 @@ fun DependencyHandlerScope.allLibrariesImpl() {
     implementation(project(":libraries:eventformatter:impl"))
     implementation(project(":libraries:indicator:impl"))
     implementation(project(":libraries:permissions:impl"))
+    implementation(project(":libraries:parentalgate:impl"))
     implementation(project(":libraries:audio:impl"))
     implementation(project(":libraries:push:impl"))
     implementation(project(":libraries:featureflag:impl"))

@@ -36,6 +36,13 @@ PRs must meet these rules.
   - Platform-specific: `_ios` or `_android` suffix.
   - Placeholders: Use numbered form `%1$s`, `%2$d`.
 
+### Links out (parental gate)
+
+- Family Chat has a child audience: every link or intent that leaves the app goes through the parental gate
+  (`libraries/parentalgate/README.md`). Use `openUrlInExternalApp()` / `openUrlInChromeCustomTab()` or
+  `startActivityBehindParentalGate()`; never build your own `Intent.ACTION_VIEW` or `CustomTabsIntent`
+  (`KonsistParentalGateTest` enforces it).
+
 ### Previews
 
 - Create previews for **all main states** of a Composable.
