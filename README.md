@@ -26,6 +26,7 @@ top of the [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk), wit
   * [Where upstream merges conflict](#where-upstream-merges-conflict)
   * [Per-merge checklist](#per-merge-checklist)
   * [Deleted upstream workflows](#deleted-upstream-workflows)
+  * [Automated sync](#automated-sync)
 * [Contributing](#contributing)
 * [Support](#support)
 * [Copyright and License](#copyright-and-license)
@@ -175,6 +176,33 @@ secrets, accounts or infrastructure, or enforce Element's own PR rules: `build_e
 `pull_request_target`, `workflow_run` or `schedule` execute from the base branch, so if a merge
 re-adds one, delete it again **and** check that it is still disabled at repo level. `sonar.yml` is
 kept but runs on manual dispatch only until it is repointed at our self-hosted SonarQube server.
+
+### Automated sync
+
+`.github/workflows/upstream-sync.yml` runs daily (and on manual dispatch) and does the merge above
+for the newest **stable** upstream release, using
+[`scripts/upstream-sync.sh`](.github/workflows/scripts/upstream-sync.sh):
+
+- A clean merge is pushed to `upstream/vYY.MM.N` with a pull request titled
+  `chore(upstream): merge element-hq/element-x-android vYY.MM.N`. It lists the files both sides
+  changed and carries the per-merge checklist. It is never merged automatically.
+- Upstream edits to workflows the fork deleted are resolved by keeping the deletion, and workflows
+  new in the release are dropped in a second commit. Both are listed in the pull request.
+- Any other conflict pushes nothing: the workflow opens or updates an issue labelled
+  `upstream-sync` with the conflicting paths and the commands to reproduce the merge.
+- When the release notes mention a security fix, or an upstream GHSA advisory is patched in that
+  release, the pull request or issue is also labelled `security` and pings the CODEOWNERS.
+
+It runs in the `upstream-sync` environment (deployments from `familychat` only), which holds
+`UPSTREAM_SYNC_TOKEN`: a fine-grained token for this repository only, with read and write access to
+contents, pull requests and issues. `GITHUB_TOKEN` cannot be used, because its pushes do not trigger
+CI on the pull request. A manual dispatch defaults to a dry run, which writes the pull request or
+issue it would open to the job summary. The script also runs locally:
+
+```bash
+GITHUB_REPOSITORY=unicornops/familychat-android DRY_RUN=true TAG=vYY.MM.N \
+  .github/workflows/scripts/upstream-sync.sh
+```
 
 ## Contributing
 
