@@ -26,6 +26,13 @@ class DefaultEnterpriseServiceTest {
     }
 
     @Test
+    fun `Element Pro is never enforced, whatever the server's well-known says`() = runTest {
+        val defaultEnterpriseService = DefaultEnterpriseService()
+        assertThat(defaultEnterpriseService.isElementProEnforced("smith.safechat.family")).isFalse()
+        assertThat(defaultEnterpriseService.isElementProEnforced(A_HOMESERVER_URL)).isFalse()
+    }
+
+    @Test
     fun `no account provider is forced, the user enters their family's server`() {
         val defaultEnterpriseService = DefaultEnterpriseService()
         assertThat(defaultEnterpriseService.forcedAccountProvider()).isNull()
