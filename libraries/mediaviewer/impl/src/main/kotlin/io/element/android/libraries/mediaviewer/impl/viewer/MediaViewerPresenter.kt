@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
@@ -37,6 +38,7 @@ import io.element.android.libraries.mediaviewer.api.MediaViewerEntryPoint
 import io.element.android.libraries.mediaviewer.api.local.LocalMedia
 import io.element.android.libraries.mediaviewer.impl.R
 import io.element.android.libraries.mediaviewer.impl.details.MediaBottomSheetState
+import io.element.android.libraries.mediaviewer.impl.local.AppInstallDisabledException
 import io.element.android.libraries.mediaviewer.impl.local.LocalMediaActions
 import io.element.android.libraries.mediaviewer.impl.model.MediaPermissions
 import io.element.android.libraries.mediaviewer.impl.model.mediaPermissions
@@ -313,6 +315,8 @@ class MediaViewerPresenter(
     private fun mediaActionsError(throwable: Throwable): Int {
         return if (throwable is ActivityNotFoundException) {
             UtilsR.string.error_no_compatible_app_found
+        } else if (throwable is AppInstallDisabledException) {
+            R.string.screen_media_details_install_disabled
         } else {
             CommonStrings.error_unknown
         }

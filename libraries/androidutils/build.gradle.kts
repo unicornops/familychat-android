@@ -18,6 +18,11 @@ android {
     buildFeatures {
         buildConfig = true
     }
+
+    testOptions {
+        // The parental gate tests read the "no compatible app" message
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 setupDependencyInjection()
@@ -35,6 +40,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.serialization.json)
     api(libs.androidx.browser)
+    // Family Chat: every link out goes through the parental gate (unicornops/family-chat#232 decision 10)
+    api(projects.libraries.parentalgate.api)
 
     testCommonDependencies(libs)
     testImplementation(libs.coroutines.core)

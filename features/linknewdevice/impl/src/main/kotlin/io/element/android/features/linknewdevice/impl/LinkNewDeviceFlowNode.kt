@@ -40,7 +40,7 @@ import io.element.android.features.linknewdevice.impl.screens.root.LinkDeviceTyp
 import io.element.android.features.linknewdevice.impl.screens.root.LinkNewDeviceRootNode
 import io.element.android.features.linknewdevice.impl.screens.scan.ScanQrCodeNode
 import io.element.android.features.lockscreen.api.DeviceUnlockEntryPoint
-import io.element.android.libraries.androidutils.browser.openUrlInChromeCustomTab
+import io.element.android.libraries.androidutils.browser.openAccountUrlBehindParentalGate
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.callback
@@ -358,8 +358,9 @@ class LinkNewDeviceFlowNode(
         }
     }
 
+    // Family Chat: an adult action on the account provider, so behind the parental gate.
     private suspend fun navigateToBrowser(url: String) {
-        activity?.openUrlInChromeCustomTab(
+        activity?.openAccountUrlBehindParentalGate(
             session = null,
             darkTheme = darkTheme,
             url = sessionEnterpriseService.tweakMasUrl(url),

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -22,6 +23,7 @@ import io.element.android.features.location.api.Location
 import io.element.android.libraries.androidutils.system.openAppSettingsPage
 import io.element.android.libraries.core.extensions.runCatchingExceptions
 import io.element.android.libraries.di.annotations.ApplicationContext
+import io.element.android.libraries.parentalgate.api.startActivityBehindParentalGate
 import timber.log.Timber
 import java.util.Locale
 
@@ -34,8 +36,8 @@ class AndroidLocationActions(
             val uri = buildUrl(location, label).toUri()
             val showMapsIntent = Intent(Intent.ACTION_VIEW).setData(uri)
             val chooserIntent = Intent.createChooser(showMapsIntent, null)
-            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(chooserIntent)
+            // Opening a maps app leaves Family Chat: behind the parental gate.
+            context.startActivityBehindParentalGate(chooserIntent)
         }.onSuccess {
             Timber.v("Open location succeed")
         }.onFailure {

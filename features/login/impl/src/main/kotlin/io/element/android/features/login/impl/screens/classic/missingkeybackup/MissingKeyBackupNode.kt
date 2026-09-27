@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2026 Element Creations Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -7,7 +8,6 @@
 
 package io.element.android.features.login.impl.screens.classic.missingkeybackup
 
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
@@ -22,7 +22,7 @@ import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.login.impl.BuildConfig
 import io.element.android.libraries.architecture.callback
-import timber.log.Timber
+import io.element.android.libraries.parentalgate.api.startActivityBehindParentalGate
 
 @ContributesNode(AppScope::class)
 @AssistedInject
@@ -45,12 +45,8 @@ class MissingKeyBackupNode(
             BuildConfig.elementClassicPackage,
         )?.let { intent ->
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            try {
-                context.startActivity(intent)
-            } catch (e: ActivityNotFoundException) {
-                // Should not happen, Element Classic must be installed for this screen to be displayed.
-                Timber.e(e, "Element Classic app not found, cannot open it.")
-            }
+            // Launching another app leaves Family Chat: behind the parental gate.
+            context.startActivityBehindParentalGate(intent)
         }
     }
 

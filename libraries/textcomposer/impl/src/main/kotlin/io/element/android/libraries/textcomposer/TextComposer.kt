@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.libraries.androidutils.text.hideTextActionsThatLeaveTheAppInEditTexts
 import io.element.android.libraries.androidutils.ui.showKeyboard
 import io.element.android.libraries.designsystem.components.media.WaveFormSamples
 import io.element.android.libraries.designsystem.preview.DAY_MODE_NAME
@@ -187,6 +189,12 @@ fun TextComposer(
                         onResetComposerMode = onResetComposerMode,
                         isTextEmpty = state.richTextEditorState.messageHtml.isEmpty(),
                     ) {
+                        // Family Chat (parental gate): the library gives no access to its EditText, so find it under the
+                        // host view to remove the selection actions that leave the app ("Search", smart link actions).
+                        val hostView = LocalView.current
+                        LaunchedEffect(state.richTextEditorState) {
+                            hostView.post { hostView.hideTextActionsThatLeaveTheAppInEditTexts() }
+                        }
                         RichTextEditor(
                             state = state.richTextEditorState,
                             placeholder = placeholder,

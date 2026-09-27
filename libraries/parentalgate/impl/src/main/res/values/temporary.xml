@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright 2026 Unicorn Operations Ltd.
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only
+  ~ Please see LICENSE files in the repository root for full details.
+  -->
+<!--
+  Family Chat parental gate strings. Never edit localazy.xml; Localazy sync is disabled for this fork, so these stay here.
+  The numbers inside the questions are written out in English by EnglishNumberWords whatever the device language.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="screen_parental_gate_title">"Ask a grown-up"</string>
+    <string name="screen_parental_gate_subtitle">"This will take you out of Family Chat. A grown-up needs to answer this question first."</string>
+    <string name="screen_parental_gate_question_multiply">"What is %1$s times %2$s?"</string>
+    <string name="screen_parental_gate_answer_label">"Answer, in digits"</string>
+    <string name="screen_parental_gate_wrong_answer">"That's not right. Here's a new question."</string>
+</resources>

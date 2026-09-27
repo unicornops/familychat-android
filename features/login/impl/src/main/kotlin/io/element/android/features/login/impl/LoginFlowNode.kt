@@ -41,7 +41,8 @@ import io.element.android.features.login.impl.screens.onboarding.OnBoardingNode
 import io.element.android.features.login.impl.screens.tokenlogin.TokenLoginNode
 import io.element.android.features.login.impl.tokenlogin.SignInCodeStore
 import io.element.android.features.preferences.api.PreferencesEntryPoint
-import io.element.android.libraries.androidutils.browser.openUrlInChromeCustomTab
+import io.element.android.libraries.androidutils.browser.openAccountUrlBehindParentalGate
+import io.element.android.libraries.androidutils.browser.openAuthenticationUrlInChromeCustomTab
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.NodeInputs
@@ -53,6 +54,8 @@ import io.element.android.libraries.matrix.api.auth.OAuthDetails
 import io.element.android.libraries.matrix.api.core.MatrixPatterns
 import io.element.android.libraries.oauth.api.OAuthAction
 import io.element.android.libraries.oauth.api.OAuthActionFlow
+import io.element.android.libraries.parentalgate.api.ParentalGateExempt
+import io.element.android.libraries.sessionstorage.api.SessionStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -70,6 +73,7 @@ class LoginFlowNode(
     private val elementClassicConnection: ElementClassicConnection,
     private val preferencesEntryPoint: PreferencesEntryPoint,
     private val signInCodeStore: SignInCodeStore,
+    private val sessionStore: SessionStore,
 ) : BaseFlowNode<LoginFlowNode.NavTarget>(
     backstack = BackStack(
         // A control panel sign-in code is redeemed first; everything else starts as upstream does.
@@ -327,10 +331,21 @@ class LoginFlowNode(
         ?.removePrefix("mxid:")
         ?.takeIf { MatrixPatterns.isUserId(it) }
 
+    /**
+     * The first sign-in on this device is authentication on the family's account provider, not a link out, so it has no
+     * parental gate. Adding an account while someone is already signed in is an adult action, so it is gated.
+     */
+    @OptIn(ParentalGateExempt::class)
     private fun navigateToMas(oAuthDetails: OAuthDetails) {
-        activity?.let {
-            externalAppStarted = true
-            it.openUrlInChromeCustomTab(null, darkTheme, oAuthDetails.url)
+        val activity = activity ?: return
+        val darkTheme = darkTheme
+        externalAppStarted = true
+        lifecycleScope.launch {
+            if (sessionStore.numberOfSessions() > 0) {
+                activity.openAccountUrlBehindParentalGate(null, darkTheme, oAuthDetails.url)
+            } else {
+                activity.openAuthenticationUrlInChromeCustomTab(null, darkTheme, oAuthDetails.url)
+            }
         }
     }
 

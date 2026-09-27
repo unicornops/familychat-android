@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?><!--
   ~ Copyright (c) 2025 Element Creations Ltd.
   ~ Copyright 2022 New Vector Ltd.
+  ~ Copyright 2026 Unicorn Operations Ltd.
   ~
   ~ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
   ~ Please see LICENSE files in the repository root for full details.
   -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Family Chat (parental gate, unicornops/family-chat#232 decision 10): apps cannot be installed from a chat.
+      :libraries:mediaviewer:impl declares this permission for its "Install" action; an APK can still be saved or shared.
+    -->
+    <uses-permission
+        android:name="android.permission.REQUEST_INSTALL_PACKAGES"
+        tools:node="remove" />
 
     <application
         android:name=".ElementXApplication"

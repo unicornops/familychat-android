@@ -21,3 +21,10 @@
 #-renamesourcefileattribute SourceFile
 
 -keep class io.element.android.libraries.designsystem.showkase.DesignSystemShowkaseRootModuleCodegen { }
+
+# Family Chat (parental gate): ParentalGateSafeContent turns off the Process-Text items of Compose text menus through
+# this internal test hook, by reflection.
+-keep class androidx.compose.foundation.text.contextmenu.ProcessTextApi23Impl {
+    public static ** INSTANCE;
+    public void setProcessTextActivitiesQuery(kotlin.jvm.functions.Function1);
+}

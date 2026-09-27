@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -226,6 +227,12 @@ private fun WebView.setup(
         ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.MATCH_PARENT
     )
+
+    // Family Chat (parental gate): no long-press link menus, link previews or text selection (with its "Search" and
+    // Process-Text actions) in the call web view.
+    isLongClickable = false
+    isHapticFeedbackEnabled = false
+    setOnLongClickListener { true }
 
     with(settings) {
         javaScriptEnabled = true

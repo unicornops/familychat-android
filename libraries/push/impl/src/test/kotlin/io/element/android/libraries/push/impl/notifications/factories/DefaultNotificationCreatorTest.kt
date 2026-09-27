@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -437,6 +438,8 @@ class DefaultNotificationCreatorTest : RobolectricTest() {
         assertThat(contentIntent).isNotNull()
         assertThat(group).isEqualTo(expectedGroup)
         assertThat(category).isEqualTo(expectedCategory)
+        // Family Chat (parental gate): no system "smart" actions (open link, call, map) built from the text
+        assertThat(allowSystemGeneratedContextualActions).isFalse()
     }
 }
 
