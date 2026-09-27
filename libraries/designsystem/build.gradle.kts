@@ -10,7 +10,6 @@ import extension.testCommonDependencies
 
 plugins {
     id("io.element.android-compose-library")
-    alias(libs.plugins.ksp)
     id("kotlin-parcelize")
 }
 
@@ -47,9 +46,6 @@ dependencies {
     implementation(projects.libraries.preferences.api)
     implementation(projects.libraries.testtags)
     implementation(projects.libraries.uiStrings)
-
-    ksp(libs.showkase.processor)
-    implementation(libs.showkase)
 
     testCommonDependencies(libs)
 }

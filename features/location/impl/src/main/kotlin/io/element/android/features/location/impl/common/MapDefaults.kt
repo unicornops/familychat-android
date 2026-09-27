@@ -10,11 +10,9 @@
 package io.element.android.features.location.impl.common
 
 import android.Manifest
-import androidx.compose.ui.Alignment
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.map.GestureOptions
 import org.maplibre.compose.map.MapOptions
-import org.maplibre.compose.map.OrnamentOptions
 import org.maplibre.compose.map.RenderOptions
 import org.maplibre.spatialk.geojson.Position
 
@@ -25,16 +23,6 @@ object MapDefaults {
     val options = MapOptions(
         renderOptions = RenderOptions.Standard,
         gestureOptions = GestureOptions.Standard,
-        ornamentOptions = OrnamentOptions(
-            isLogoEnabled = true,
-            logoAlignment = Alignment.BottomStart,
-            // Family Chat: MapLibre's attribution dialog opens the browser without the parental gate. MapAttribution
-            // shows the attribution instead (MapBottomSheetScaffold).
-            isAttributionEnabled = false,
-            attributionAlignment = Alignment.BottomEnd,
-            isCompassEnabled = false,
-            isScaleBarEnabled = false,
-        )
     )
 
     val defaultCameraPosition = CameraPosition(
