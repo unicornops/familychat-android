@@ -23,6 +23,9 @@ top of the [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk), wit
   * [Signing](#signing)
   * [Push notifications](#push-notifications)
 * [Merging upstream releases](#merging-upstream-releases)
+  * [Where upstream merges conflict](#where-upstream-merges-conflict)
+  * [Per-merge checklist](#per-merge-checklist)
+  * [Deleted upstream workflows](#deleted-upstream-workflows)
 * [Contributing](#contributing)
 * [Support](#support)
 * [Copyright and License](#copyright-and-license)
@@ -113,23 +116,65 @@ git checkout -b chore/merge-upstream-vYY.MM.N
 git merge vYY.MM.N
 ```
 
-Conflicts concentrate in a small number of files, in roughly this order of likelihood:
+Merge the release **tag**, never rebase: `familychat` is public, and every release must map to a
+tag. Only merge stable releases: upstream publishes some `vYY.MM.N` tags as GitHub pre-releases (for
+example `v26.09.3`), so check the release page before merging one.
 
-1. `plugins/src/main/kotlin/config/BuildTimeConfig.kt` and `plugins/src/main/kotlin/ModulesConfig.kt`
-2. `app/build.gradle.kts`, `settings.gradle.kts` and `app/src/main/AndroidManifest.xml`
-3. `appconfig/`
-4. `features/enterprise/impl-foss/`
-5. `.github/workflows/` (several upstream workflows are deleted in the fork, see below)
+### Where upstream merges conflict
 
-Always keep our values, and read upstream's diff for *new* configuration keys that need a Family Chat
-value. After merging, run `./gradlew :app:assembleGplayDebug test` and open a PR against `familychat`.
+Keep this list current after every merge. Always keep our values, and read upstream's diff for *new*
+configuration keys or code paths that need a Family Chat answer.
+
+1. **Build configuration:** `plugins/src/main/kotlin/config/*` (`BuildTimeConfig`, `ModulesConfig`,
+   the push config), `appconfig/`, the application ids and the launcher icons.
+2. **Sign-in:** `DefaultEnterpriseService` (the homeserver allowlist, `forcedAccountProvider()`,
+   `isElementProEnforced()`, which must stay `false`: since v26.09.2 upstream fetches
+   `.well-known/element/element.json` there to send users to Element Pro), `LoginLinkPolicy`, the
+   sign-in-code login (`SignInCodeStore`, `LoginTokenExchanger`) and `RustMatrixAuthenticationService`
+   (the resolved-homeserver backstop).
+3. **The parental gate:** the `libraries/parentalgate` module, the `androidutils` openers,
+   `SafeUriHandler`/`ParentalGateSafeContent` in `ElementThemeApp`, the Konsist tripwire, the
+   notification builders (`setAllowSystemGeneratedContextualActions(false)`), the Application's
+   Compose flags (`isSmartSelectionEnabled` and the Process-Text reflection hook, whose ProGuard keep
+   rule is in `libraries/designsystem/consumer-rules.pro`: re-check both on every Compose upgrade),
+   the manifest's removed `REQUEST_INSTALL_PACKAGES`, and the map overlay in
+   `MapBottomSheetScaffold`. Since maplibre-compose 0.15 the MapLibre logo and attribution are
+   composables that open the browser through `LocalUriHandler`; we draw the logo with
+   `onClick = null` and use our `MapAttribution` instead of `ExpandingAttributionButton`.
+4. **Strings:** ours live in `temporary.xml`, never `localazy.xml`. Localazy sync stays off.
+5. **Workflows:** `.github/workflows/`, see the list of deleted workflows below. Upstream edits to a
+   workflow we deleted show up as modify/delete conflicts: keep the deletion.
+6. **Dependencies:** for the Rust SDK Maven artefact (`matrix_sdk`) and other library versions, take
+   upstream's.
+
+After merging, run `./gradlew :app:assembleGplayDebug :app:assembleFdroidDebug test` and open a PR
+against `familychat` with the checklist below.
+
+### Per-merge checklist
+
+- [ ] Konsist/detekt/ktlint green (the parental-gate tripwire must not be widened by an allow-list
+      entry without a reason)
+- [ ] Paparazzi goldens: note any needing re-record
+- [ ] No upstream workflow re-added (or re-deleted + still disabled at repo level:
+      `gh workflow list --all`)
+- [ ] Brand check: no "Element"/Element URLs reintroduced in user-facing strings or config
+- [ ] Parental gate still covers every new way to leave the app: new `open`/URL/link code, new web
+      views, new library-provided buttons
+- [ ] Sign-in allowlist and sign-in-code rules unchanged (family-chat `docs/client-login-links.md`)
+- [ ] No third-party analytics/telemetry re-enabled (Kids/Families declarations, family-chat#232
+      decisions 4 and 8)
+- [ ] CI green
+
+### Deleted upstream workflows
 
 The following upstream workflows are intentionally absent because they depend on Element's
-secrets, accounts or infrastructure: `build_enterprise`, `danger`, `fork-pr-notice`,
-`generate_github_pages`, `maestro-local`, `nightly`, `nightlyReports`, `post-release`, `pull_request`,
-`release`, `stale-issues`, `sync-localazy`, `sync-sas-strings`, `triage-incoming` and
-`triage-labelled`. `sonar.yml` is kept but runs on manual dispatch only until it is repointed at our
-self-hosted SonarQube server.
+secrets, accounts or infrastructure, or enforce Element's own PR rules: `build_enterprise`, `danger`,
+`fork-pr-notice`, `generate_github_pages`, `maestro-local`, `nightly`, `nightlyReports`,
+`post-release`, `pr-checks`, `pull_request`, `release`, `stale-issues`, `sync-localazy`,
+`sync-sas-strings`, `triage-incoming` and `triage-labelled`. Workflows that run on
+`pull_request_target`, `workflow_run` or `schedule` execute from the base branch, so if a merge
+re-adds one, delete it again **and** check that it is still disabled at repo level. `sonar.yml` is
+kept but runs on manual dispatch only until it is repointed at our self-hosted SonarQube server.
 
 ## Contributing
 
