@@ -158,7 +158,9 @@ against `familychat` with the checklist below.
 - [ ] Paparazzi goldens: note any needing re-record
 - [ ] No upstream workflow re-added (or re-deleted + still disabled at repo level:
       `gh workflow list --all`)
-- [ ] Brand check: no "Element"/Element URLs reintroduced in user-facing strings or config
+- [ ] Brand check: no "Element"/Element URLs reintroduced in user-facing strings or config.
+      Run `tools/familychat/brand_translations.py` to regenerate the translation overrides; with `--check` it
+      also lists any new translated string that names Element and needs classifying (CI runs `--check`)
 - [ ] Parental gate still covers every new way to leave the app: new `open`/URL/link code, new web
       views, new library-provided buttons
 - [ ] Sign-in allowlist and sign-in-code rules unchanged (family-chat `docs/client-login-links.md`)
