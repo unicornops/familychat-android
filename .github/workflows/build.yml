@@ -54,6 +54,10 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/familychat' }}
       - name: Assemble debug APKs
         run: ./gradlew :app:assembleGplayDebug :app:assembleFdroidDebug -PallWarningsAsErrors=true $CI_GRADLE_ARG_PROPERTIES
+      - name: Check merged manifests against the Families policy
+        run: |
+          ./gradlew :app:processGplayReleaseMainManifest :app:processFdroidReleaseMainManifest $CI_GRADLE_ARG_PROPERTIES
+          ./tools/check/check_families_manifest.sh
       - name: Upload debug APKs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

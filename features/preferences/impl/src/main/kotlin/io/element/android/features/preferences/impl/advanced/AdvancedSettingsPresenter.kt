@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -17,6 +18,7 @@ import androidx.compose.runtime.remember
 import dev.zacsweers.metro.Inject
 import io.element.android.compound.theme.Theme
 import io.element.android.compound.theme.mapToTheme
+import io.element.android.features.location.api.LocationService
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.di.annotations.SessionCoroutineScope
 import io.element.android.libraries.featureflag.api.FeatureFlagService
@@ -37,6 +39,7 @@ class AdvancedSettingsPresenter(
     @SessionCoroutineScope
     private val sessionCoroutineScope: CoroutineScope,
     private val featureFlagService: FeatureFlagService,
+    private val locationService: LocationService,
 ) : Presenter<AdvancedSettingsState> {
     @Composable
     override fun present(): AdvancedSettingsState {
@@ -53,7 +56,9 @@ class AdvancedSettingsPresenter(
             appPreferencesStore.getThemeFlow().mapToTheme(isBlackThemeAllowed)
         }.collectAsState(initial = Theme.System)
 
+        // Family Chat: no live location setting in builds without location sharing.
         val liveLocationMinimumDistanceUpdate by produceState<Int?>(null) {
+            if (!locationService.isServiceAvailable()) return@produceState
             appPreferencesStore.getLiveLocationMinimumDistanceInMetersUpdateFlow().collect { value = it }
         }
 

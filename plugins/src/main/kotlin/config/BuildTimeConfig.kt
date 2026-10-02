@@ -34,7 +34,15 @@ object BuildTimeConfig {
     val URL_PRIVACY: String? = "https://safechat.family/privacy/"
     val URL_POLICY: String? = "https://safechat.family/privacy/"
 
-    // Location sharing stays disabled (issue #232 decision 4), so no MapTiler key ships.
+    /**
+     * Location sharing, live location and maps (family-chat#232 decision 4, Play Families policy).
+     * `false` forces an empty MapTiler key whatever the environment or local.properties say, so
+     * received locations never fetch a map, and the app manifest strips the location permissions
+     * and the live location service. Flipping it back also needs that manifest block removed.
+     */
+    const val LOCATION_SHARING_ENABLED: Boolean = false
+
+    // No MapTiler key ships while LOCATION_SHARING_ENABLED is false.
     val SERVICES_MAPTILER_BASE_URL: String? = null
     val SERVICES_MAPTILER_APIKEY: String? = ""
     val SERVICES_MAPTILER_LIGHT_MAPID: String? = ""
