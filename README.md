@@ -163,7 +163,9 @@ against `familychat` with the checklist below.
       also lists any new translated string that names Element and needs classifying (CI runs `--check`)
 - [ ] Parental gate still covers every new way to leave the app: new `open`/URL/link code, new web
       views, new library-provided buttons. On a Compose BOM or `wysiwyg` bump, `ComposeProcessTextSwitchTest`
-      and `RichTextEditorSelectionActionsTest` say whether the two reflection/view-tree hooks still hold
+      (the Process-Text reflection hook still empties Compose's query) and `RichTextEditorSelectionActionsTest`
+      (the editor is still an `EditText` created by `RichTextEditor`, and the library sets no selection callbacks or
+      text classifier of its own) fail if those hooks stop holding
 - [ ] Sign-in allowlist and sign-in-code rules unchanged (family-chat `docs/client-login-links.md`)
 - [ ] No third-party analytics/telemetry re-enabled (Kids/Families declarations, family-chat#232
       decisions 4 and 8)

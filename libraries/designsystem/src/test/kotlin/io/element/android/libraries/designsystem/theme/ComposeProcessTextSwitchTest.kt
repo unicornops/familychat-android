@@ -41,14 +41,30 @@ class ComposeProcessTextSwitchTest : RobolectricTest() {
             Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain"),
             aProcessTextResolveInfo(),
         )
-        assertThat(context.packageManager.queryIntentActivities(Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain"), 0)).isNotEmpty()
-
-        disableTextActionsThatLeaveTheApp()
-
         val implClass = Class.forName(PROCESS_TEXT_IMPL)
         val instance = implClass.getField("INSTANCE").get(null)
-        val activities = implClass.getMethod("queryProcessTextActivities", Context::class.java).invoke(instance, context) as List<*>
-        assertThat(activities).isEmpty()
+        val getQuery = implClass.getMethod("getProcessTextActivitiesQuery")
+        val setQuery = implClass.getMethod("setProcessTextActivitiesQuery", Function1::class.java)
+        val query = implClass.getMethod("queryProcessTextActivities", Context::class.java)
+        // The query is process-wide: another test of this sandbox may have disabled it already.
+        val previous = getQuery.invoke(instance)
+        setQuery.invoke(instance, defaultQuery(context))
+        try {
+            // Through Compose's own query, the app is listed...
+            assertThat(query.invoke(instance, context) as List<*>).isNotEmpty()
+
+            disableTextActionsThatLeaveTheApp()
+
+            // ...and no longer once the switch has run.
+            assertThat(query.invoke(instance, context) as List<*>).isEmpty()
+        } finally {
+            setQuery.invoke(instance, previous)
+        }
+    }
+
+    /** What Compose's default query does: list the Process-Text activities for plain text. */
+    private fun defaultQuery(context: Context): (Context) -> List<ResolveInfo> = {
+        context.packageManager.queryIntentActivities(Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain"), 0)
     }
 
     private fun aProcessTextResolveInfo() = ResolveInfo().apply {
