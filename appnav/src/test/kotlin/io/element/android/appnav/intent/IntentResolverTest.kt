@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -316,6 +317,22 @@ class IntentResolverTest : RobolectricTest() {
         }
         val result = sut.resolve(intent)
         assertThat(result).isEqualTo(ResolvedIntent.Login(aLoginParams))
+    }
+
+    @Test
+    fun `resolve sign-in code link replayed from the recents list should return null`() {
+        // Family Chat (#8, N8): Android keeps the launch intent in the recents list. Reopening the app from there must not
+        // try to redeem the sign-in code a second time. The login link resolver is never asked (it would throw).
+        val sut = createIntentResolver(
+            oAuthIntentResolverResult = { null },
+        )
+        val intent = Intent(RuntimeEnvironment.getApplication(), Activity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = "https://safechat.family/app/login?account_provider=smith.safechat.family&hs=smith.safechat.family&token=abc".toUri()
+            addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+        }
+        val result = sut.resolve(intent)
+        assertThat(result).isNull()
     }
 
     private fun createIntentResolver(
