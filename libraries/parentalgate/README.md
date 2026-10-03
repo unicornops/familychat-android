@@ -38,13 +38,14 @@ reach it without any call site changing. If the activity is missing from a build
 | You want to | Use |
 |---|---|
 | Open a web page, `mailto:`, `tel:`, a store listing | `Context.openUrlInExternalApp(url)` or `Activity.openUrlInChromeCustomTab(null, darkTheme, url)` (both gated), `Context.openGooglePlay(appId)` |
-| Start any other intent that leaves the app (another app, maps, "open with", a future control-panel link, GIF attribution) | `Context.startActivityBehindParentalGate(intent, fallback)` |
+| Start any other intent that leaves the app (another app, maps, "open with", GIF attribution) | `Context.startActivityBehindParentalGate(intent, fallback)` |
 | Run something that is not an intent only for an adult (a purchase, if one is ever added) | `rememberLauncherForActivityResult(ParentalGateResultContract()) { passed -> ... }` |
 | Open an account-provider page for an adult action while signed in (adding an account, identity reset, approving a new device) | `Activity.openAccountUrlBehindParentalGate()`: the gate, then a locked-down Custom Tab |
 | The FIRST sign-in on the device | `Activity.openAuthenticationUrlInChromeCustomTab()`, which needs `@OptIn(ParentalGateExempt::class)`; only `LoginFlowNode` uses it, and only when no account is signed in |
 
-**Future work that must use the gate**: the control-panel settings entry (#234 section 5) and the GIF attribution link
-(#238).
+The control-panel settings entry (#13) uses `openUrlInExternalApp()`, so it is gated like any other link.
+
+**Future work that must use the gate**: the GIF attribution link (#238).
 
 ## Exits closed rather than gated
 
