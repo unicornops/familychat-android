@@ -60,9 +60,9 @@ KEPT = {
     # isElementProEnforced() is false in this fork.
     "screen_change_server_error_element_pro_required_title": "Element Pro check disabled",
     "screen_change_server_error_element_pro_required_message": "Element Pro check disabled",
-    # Only shown when the Element Classic app is installed with a session to import.
-    "screen_missing_key_backup_open_element_classic": "Element Classic import",
-    "screen_missing_key_backup_step_1": "Element Classic import",
+    # Element Classic session import, turned off (BuildTimeConfig.ELEMENT_CLASSIC_IMPORT_ENABLED, #19).
+    "screen_missing_key_backup_open_element_classic": "Element Classic import disabled, #19",
+    "screen_missing_key_backup_step_1": "Element Classic import disabled, #19",
     # Label of the call activity in the manifest, not translatable.
     "element_call": "Element Call, unicornops/family-chat#258",
     # "Element" is the ordinary word for "item" in some languages here.
