@@ -58,6 +58,8 @@ class OpenWithParentalGateTest : RobolectricTest() {
             val started = shadowOf(application).nextStartedActivity
             assertThat(started.component?.className).isEqualTo(ParentalGate.ACTIVITY_CLASS_NAME)
             assertThat(started.component?.packageName).isEqualTo(application.packageName)
+            // The gate activity is really in the merged manifest: without it the gate fails closed and nothing opens.
+            assertThat(application.packageManager.resolveActivity(started, 0)).isNotNull()
             val target = IntentCompat.getParcelableExtra(started, ParentalGate.EXTRA_TARGET_INTENT, Intent::class.java)
             assertThat(target?.action).isEqualTo(Intent.ACTION_VIEW)
             assertThat(target?.type).isEqualTo("text/html")
