@@ -764,7 +764,10 @@ class MessagesFlowNode(
                 )
             }
             is TimelineItemLocationContent -> {
-                if (hasVulkanSupport()) {
+                // Family Chat: without a map provider a tap does nothing, rather than reporting missing Vulkan support.
+                if (!locationService.isServiceAvailable()) {
+                    null
+                } else if (hasVulkanSupport()) {
                     val mode = when (event.content.mode) {
                         is TimelineItemLocationContent.Mode.Live -> ShowLocationMode.Live(event.senderId)
                         is TimelineItemLocationContent.Mode.Static -> ShowLocationMode.Static(
@@ -776,7 +779,7 @@ class MessagesFlowNode(
                             assetType = event.content.assetType,
                         )
                     }
-                    NavTarget.LocationViewer(mode = mode).takeIf { locationService.isServiceAvailable() }
+                    NavTarget.LocationViewer(mode = mode)
                 } else {
                     displayVulkanNotSupportedError = true
                     null

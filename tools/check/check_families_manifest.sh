@@ -10,8 +10,8 @@
 # decisions, rule out. A new library can bring these in silently, so this runs on every CI build.
 #
 # Usage: tools/check/check_families_manifest.sh [merged AndroidManifest.xml ...]
-# With no argument, it checks every merged manifest under app/build/intermediates (build them first, e.g.
-# ./gradlew :app:processGplayReleaseMainManifest :app:processFdroidReleaseMainManifest).
+# With no argument, it checks the gplay and fdroid release main manifests, and fails if either is missing (build them
+# first: ./gradlew :app:processGplayReleaseMainManifest :app:processFdroidReleaseMainManifest).
 
 set -euo pipefail
 
@@ -21,6 +21,7 @@ forbidden=(
     "android.permission.ACCESS_FINE_LOCATION"
     "android.permission.ACCESS_BACKGROUND_LOCATION"
     "android.permission.FOREGROUND_SERVICE_LOCATION"
+    "android.permission.ACCESS_MEDIA_LOCATION"
     "io.element.android.features.location.impl.live.service.LiveLocationSharingService"
     # No advertising ID or analytics (Firebase brings these unless excluded).
     "com.google.android.gms.permission.AD_ID"
@@ -41,14 +42,18 @@ forbidden=(
 if [[ $# -gt 0 ]]; then
     manifests=("$@")
 else
-    mapfile -t manifests < <(find app/build/intermediates/merged_manifest app/build/intermediates/merged_manifests \
-        -name AndroidManifest.xml 2>/dev/null | sort)
+    manifests=(
+        app/build/intermediates/merged_manifest/gplayRelease/processGplayReleaseMainManifest/AndroidManifest.xml
+        app/build/intermediates/merged_manifest/fdroidRelease/processFdroidReleaseMainManifest/AndroidManifest.xml
+    )
 fi
 
-if [[ ${#manifests[@]} -eq 0 ]]; then
-    echo "No merged manifest found: build one first." >&2
-    exit 2
-fi
+for manifest in "${manifests[@]}"; do
+    if [[ ! -f "${manifest}" ]]; then
+        echo "Merged manifest not found: ${manifest}. Build it first." >&2
+        exit 2
+    fi
+done
 
 failed=0
 for manifest in "${manifests[@]}"; do
@@ -58,6 +63,25 @@ for manifest in "${manifests[@]}"; do
             failed=1
         fi
     done
+    # Play counts Bluetooth and Wi-Fi scanning as location access unless it is flagged neverForLocation.
+    if ! python3 - "${manifest}" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+ANDROID = "{http://schemas.android.com/apk/res/android}"
+bad = [
+    element.get(ANDROID + "name")
+    for element in ET.parse(sys.argv[1]).getroot()
+    if element.tag.startswith("uses-permission")
+    and element.get(ANDROID + "name") in ("android.permission.BLUETOOTH_SCAN", "android.permission.NEARBY_WIFI_DEVICES")
+    and "neverForLocation" not in (element.get(ANDROID + "usesPermissionFlags") or "")
+]
+for name in bad:
+    print(f"❌ {sys.argv[1]}: {name} without usesPermissionFlags=\"neverForLocation\"", file=sys.stderr)
+sys.exit(1 if bad else 0)
+PY
+    then
+        failed=1
+    fi
 done
 
 if [[ ${failed} -ne 0 ]]; then
