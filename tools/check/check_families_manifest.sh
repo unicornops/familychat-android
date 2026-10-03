@@ -32,6 +32,8 @@ forbidden=(
     "com.google.firebase.analytics"
     # Parental gate: no installing apps from a chat.
     "android.permission.REQUEST_INSTALL_PACKAGES"
+    # Session import from Element Classic (#19): no package visibility of im.vector.app*.
+    "im.vector.app"
     # Device and account data the app has no use for.
     "android.permission.QUERY_ALL_PACKAGES"
     "android.permission.READ_PHONE_STATE"

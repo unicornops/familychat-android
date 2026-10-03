@@ -202,6 +202,10 @@ class LoginFlowNode(
                 createNode<TokenLoginNode>(buildContext, plugins = listOf(inputs, callback))
             }
             NavTarget.CheckClassicFlow -> {
+                if (!BuildConfig.ELEMENT_CLASSIC_IMPORT_ENABLED) {
+                    // Family Chat (#19): no Family Chat account ever lived in Element Classic, so go straight to onboarding.
+                    return resolve(NavTarget.OnBoarding(showBackButton = false), buildContext)
+                }
                 val callback = object : ClassicFlowNode.Callback {
                     override fun navigateToOnBoarding(allowBackNavigation: Boolean) {
                         if (allowBackNavigation) {
@@ -354,10 +358,12 @@ class LoginFlowNode(
         activity = requireNotNull(LocalActivity.current)
         darkTheme = !ElementTheme.isLightTheme
 
-        DisposableEffect(Unit) {
-            elementClassicConnection.start()
-            onDispose {
-                elementClassicConnection.stop()
+        if (BuildConfig.ELEMENT_CLASSIC_IMPORT_ENABLED) {
+            DisposableEffect(Unit) {
+                elementClassicConnection.start()
+                onDispose {
+                    elementClassicConnection.stop()
+                }
             }
         }
 

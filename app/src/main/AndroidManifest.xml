@@ -32,6 +32,19 @@
         android:name="android.permission.FOREGROUND_SERVICE_LOCATION"
         tools:node="remove" />
 
+    <!-- Family Chat (#19): no Element Classic session import (BuildTimeConfig.ELEMENT_CLASSIC_IMPORT_ENABLED). -->
+    <queries>
+        <package
+            android:name="im.vector.app"
+            tools:node="remove" />
+        <package
+            android:name="im.vector.app.debug"
+            tools:node="remove" />
+        <package
+            android:name="im.vector.app.nightly"
+            tools:node="remove" />
+    </queries>
+
     <application
         android:name=".ElementXApplication"
         android:allowBackup="false"
