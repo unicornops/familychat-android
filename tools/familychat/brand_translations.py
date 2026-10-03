@@ -26,6 +26,7 @@ import html
 import os
 import re
 import sys
+import xml.etree.ElementTree as ET
 
 BRAND = "Family Chat"
 OUTPUT_DIR = "app/src/main/res"
@@ -62,14 +63,21 @@ KEPT = {
     # Only shown when the Element Classic app is installed with a session to import.
     "screen_missing_key_backup_open_element_classic": "Element Classic import",
     "screen_missing_key_backup_step_1": "Element Classic import",
+    # Label of the call activity in the manifest, not translatable.
+    "element_call": "Element Call, unicornops/family-chat#258",
     # "Element" is the ordinary word for "item" in some languages here.
     "screen_media_upload_preview_item_count": "ordinary word, not the brand",
 }
 
-# "Element" not followed by a lower-case letter: catches "Element", "Element X", "Element에서", not "Elemente".
-ELEMENT = re.compile(r"Element(?![a-zà-öø-ÿ])")
-ELEMENT_X = re.compile(r"Element[  ]X")
-STRING = re.compile(r'^\s*<string name="(?P<name>[^"]+)"(?P<attrs>[^>]*)>(?P<value>.*)</string>\s*$')
+# The brand as a whole word in any script: "Element", "Element X", "Element," but not "Elemente" or "Elementin".
+ELEMENT = re.compile(r"Element(?!\w)")
+ELEMENT_X = re.compile(r"Element[ \u00a0]X")
+# Any form of the word, inflected or lower case ("Elementin", "elementa"): a PATCHED value still matching after the
+# patch falls back to the English override rather than half-naming Element.
+ANY_ELEMENT = re.compile(r"element", re.IGNORECASE)
+# Single-line string with its raw (escaped) value, attributes in any order. Only used to copy values verbatim.
+STRING = re.compile(r'^\s*<string\b(?P<attrs>[^>]*)>(?P<value>.*)</string>\s*$')
+NAME = re.compile(r'\bname="(?P<name>[^"]+)"')
 
 HEADER = """<?xml version="1.0" encoding="utf-8"?>
 <!--
@@ -83,45 +91,78 @@ HEADER = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 
-def read_translations():
-    """Returns {qualifier: {name: raw value}} for every library string resource outside the app module."""
-    result = {}
+def resource_files():
     for path in sorted(glob.glob("**/src/main/res/values*/*.xml", recursive=True)):
         if "/build/" in path or path.startswith(OUTPUT_DIR + "/"):
             continue
-        qualifier = path.split("/res/")[1].split("/")[0]
+        yield path.split("/res/")[1].split("/")[0], path
+
+
+def read_translations():
+    """
+    Returns ({qualifier: {name: raw value}}, {qualifier: {name: text}}).
+
+    The raw values come from single-line <string> elements and are copied verbatim into the overrides. The texts come
+    from a real XML parse of every <string>, <plurals> item and <string-array> item, and are what the Element check
+    looks at, so multi-line strings and plurals cannot slip past it.
+    """
+    raw = {}
+    texts = {}
+    for qualifier, path in resource_files():
         with open(path, encoding="utf-8") as f:
             for line in f:
                 match = STRING.match(line)
-                if match:
-                    result.setdefault(qualifier, {})[match["name"]] = match["value"]
-    return result
+                name = match and NAME.search(match["attrs"])
+                if name:
+                    raw.setdefault(qualifier, {})[name["name"]] = match["value"]
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError:
+            continue
+        for element in root:
+            name = element.get("name")
+            if element.tag == "string" and name:
+                texts.setdefault(qualifier, {})[name] = "".join(element.itertext())
+            elif element.tag in ("plurals", "string-array") and name:
+                for index, item in enumerate(element.iter("item")):
+                    texts.setdefault(qualifier, {})[f"{name}[{index}]"] = "".join(item.itertext())
+    return raw, texts
 
 
 def patch(value):
     return ELEMENT.sub(BRAND, ELEMENT_X.sub(BRAND, value))
 
 
-def build_overrides(translations):
-    """Returns ({qualifier: {name: value}}, [unknown "qualifier name" entries])."""
+def build_overrides(raw, texts):
+    """Returns ({qualifier: {name: value}}, [problems])."""
     overrides = {}
-    unknown = []
-    defaults = translations.get("values", {})
-    for qualifier, strings in translations.items():
-        for name, value in strings.items():
-            if name in FIXED:
-                overrides.setdefault(qualifier, {})[name] = html.escape(FIXED[name], quote=False)
-            elif name in PATCHED:
-                if ELEMENT.search(value):
-                    overrides.setdefault(qualifier, {})[name] = patch(value)
-            elif ELEMENT.search(value) and name not in KEPT:
-                unknown.append(f"{qualifier} {name}: {value}")
+    problems = []
+    defaults = raw.get("values", {})
+    for qualifier, strings in texts.items():
+        for name, text in strings.items():
+            key = name.split("[")[0]
+            if key in FIXED:
+                overrides.setdefault(qualifier, {})[key] = html.escape(FIXED[key], quote=False)
+            elif key in PATCHED:
+                if not ANY_ELEMENT.search(text):
+                    continue
+                value = raw.get(qualifier, {}).get(key)
+                if value is None:
+                    problems.append(f"{qualifier} {name}: not a single-line <string>, cannot override it")
+                    continue
+                patched = patch(value)
+                if ANY_ELEMENT.search(patched):
+                    # An inflected form ("Elementin oletus"): show the English default rather than guess the grammar.
+                    patched = patch(defaults[key])
+                overrides.setdefault(qualifier, {})[key] = patched
+            elif ELEMENT.search(text) and key not in KEPT:
+                problems.append(f"{qualifier} {name}: {text}")
     # Lint (ExtraTranslation) wants every key overridden in a locale to exist in the app's default locale too.
     default_overrides = overrides.setdefault("values", {})
     for qualifier, strings in list(overrides.items()):
         for name in strings:
-            default_overrides.setdefault(name, defaults[name])
-    return overrides, unknown
+            default_overrides.setdefault(name, patch(defaults[name]))
+    return overrides, problems
 
 
 def render(strings):
@@ -145,13 +186,13 @@ def main():
     parser.add_argument("--check", action="store_true", help="fail instead of writing when files are stale")
     args = parser.parse_args()
 
-    overrides, unknown = build_overrides(read_translations())
+    overrides, unknown = build_overrides(*read_translations())
     expected = expected_files(overrides)
     failed = False
 
     if unknown:
         failed = True
-        print("Strings that name Element and are not classified in tools/familychat/brand_translations.py:", file=sys.stderr)
+        print("Strings that name Element and are not handled by tools/familychat/brand_translations.py:", file=sys.stderr)
         for entry in sorted(unknown):
             print(f"  {entry}", file=sys.stderr)
 
