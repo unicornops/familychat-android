@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -61,6 +62,7 @@ fun PreferencesRootView(
     onAddAccountClick: () -> Unit,
     onSecureBackupClick: () -> Unit,
     onManageAccountClick: (url: String) -> Unit,
+    onOpenControlPanel: (url: String) -> Unit,
     onLinkNewDeviceClick: () -> Unit,
     onOpenAnalytics: () -> Unit,
     onOpenRageShake: () -> Unit,
@@ -108,6 +110,7 @@ fun PreferencesRootView(
             ManageAccountSection(
                 state = state,
                 onManageAccountClick = onManageAccountClick,
+                onOpenControlPanel = onOpenControlPanel,
                 onLinkNewDeviceClick = onLinkNewDeviceClick,
                 onOpenBlockedUsers = onOpenBlockedUsers
             )
@@ -248,9 +251,19 @@ private fun ColumnScope.ManageAppSection(
 private fun ColumnScope.ManageAccountSection(
     state: PreferencesRootState,
     onManageAccountClick: (url: String) -> Unit,
+    onOpenControlPanel: (url: String) -> Unit,
     onLinkNewDeviceClick: () -> Unit,
     onOpenBlockedUsers: () -> Unit,
 ) {
+    // Family Chat (#13): for parents; a link out, so it opens behind the parental gate.
+    state.controlPanelUrl?.let { url ->
+        ListItem(
+            content = { Text(stringResource(id = R.string.screen_settings_control_panel)) },
+            leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Admin())),
+            trailingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.PopOut())),
+            onClick = { onOpenControlPanel(url) },
+        )
+    }
     state.accountManagementUrl?.let { url ->
         ListItem(
             content = { Text(stringResource(id = CommonStrings.action_manage_account_and_devices)) },
@@ -274,7 +287,8 @@ private fun ColumnScope.ManageAccountSection(
             trailingContent = ListItemContent.Text(state.nbOfBlockedUsers.toString()),
         )
     }
-    if (state.accountManagementUrl != null || state.showLinkNewDevice || state.showBlockedUsersItem) {
+    val hasItems = listOf(state.controlPanelUrl != null, state.accountManagementUrl != null, state.showLinkNewDevice, state.showBlockedUsersItem)
+    if (hasItems.any { it }) {
         HorizontalDivider()
     }
 }
@@ -401,6 +415,7 @@ private fun ContentToPreview(state: PreferencesRootState) {
         onOpenAbout = {},
         onSecureBackupClick = {},
         onManageAccountClick = {},
+        onOpenControlPanel = {},
         onLinkNewDeviceClick = {},
         onOpenNotificationSettings = {},
         onOpenLockScreenSettings = {},
