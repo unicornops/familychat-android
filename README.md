@@ -162,7 +162,8 @@ against `familychat` with the checklist below.
       Run `tools/familychat/brand_translations.py` to regenerate the translation overrides; with `--check` it
       also lists any new translated string that names Element and needs classifying (CI runs `--check`)
 - [ ] Parental gate still covers every new way to leave the app: new `open`/URL/link code, new web
-      views, new library-provided buttons
+      views, new library-provided buttons. On a Compose BOM or `wysiwyg` bump, `ComposeProcessTextSwitchTest`
+      and `RichTextEditorSelectionActionsTest` say whether the two reflection/view-tree hooks still hold
 - [ ] Sign-in allowlist and sign-in-code rules unchanged (family-chat `docs/client-login-links.md`)
 - [ ] No third-party analytics/telemetry re-enabled (Kids/Families declarations, family-chat#232
       decisions 4 and 8)
