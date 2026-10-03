@@ -2,6 +2,7 @@
 
 # Copyright (c) 2025 Element Creations Ltd.
 # Copyright 2023-2024 New Vector Ltd.
+# Copyright 2026 Unicorn Operations Ltd.
 #
 # SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
 # Please see LICENSE files in the repository root for full details.
@@ -67,13 +68,13 @@ echo "Committing changes"
 git config http.sslVerify false
 
 if [[ -z ${INPUT_AUTHOR_NAME} ]]; then
-  git config user.name "ElementBot"
+  git config user.name "github-actions[bot]"
 else
   git config --local user.name "${INPUT_AUTHOR_NAME}"
 fi
 
 if [[ -z ${INPUT_AUTHOR_EMAIL} ]]; then
-  git config user.email "android@element.io"
+  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 else
   git config --local user.name "${INPUT_AUTHOR_EMAIL}"
 fi

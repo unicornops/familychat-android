@@ -38,6 +38,16 @@ jobs:
           docker-images: true
           swap-storage: false
 
+      # Increase swapfile size to prevent screenshot tests getting terminated
+      # https://github.com/actions/runner-images/discussions/7188#discussioncomment-6750749
+      - name: 💽 Increase swapfile size
+        run: |
+          sudo swapoff -a
+          sudo fallocate -l 8G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          sudo swapon --show
       - name: ⏬ Checkout with LFS
         uses: nschloe/action-cached-lfs-checkout@385a8ecc719e50b8c71af6ab01a624b486b7c3bc # v1.2.5
         with:
@@ -57,9 +67,8 @@ jobs:
       - name: ⚙️ Run unit tests
         run: ./gradlew :app:testGplayDebugUnitTest testDebugUnitTest -x :tests:konsist:testDebugUnitTest $CI_GRADLE_ARG_PROPERTIES
 
-      # Screenshot tests are not run yet: the rebrand invalidates every recorded golden image.
-      # Re-record them with the "Record screenshots" workflow and re-enable this step
-      # (unicornops/family-chat#234).
+      - name: ⚙️ Run screenshot tests
+        run: ./gradlew :tests:uitests:verifyPaparazziDebug $CI_GRADLE_ARG_PROPERTIES
 
       - name: 🚫 Upload test results on error
         if: failure()
