@@ -37,6 +37,12 @@ plugins {
 android {
     namespace = "io.element.android.x"
 
+    testOptions {
+        // Family Chat (#8): the parental gate tests need the merged manifest (FileProvider, gate activity). The
+        // application class stays android.app.Application, see src/test/resources/robolectric.properties.
+        unitTests.isIncludeAndroidResources = true
+    }
+
     defaultConfig {
         applicationId = BuildTimeConfig.APPLICATION_ID
         targetSdk = Versions.TARGET_SDK
@@ -281,6 +287,7 @@ dependencies {
 
     testCommonDependencies(libs)
     testImplementation(projects.libraries.matrix.test)
+    testImplementation(projects.libraries.mediaviewer.test)
     testImplementation(projects.services.toolbox.test)
 }
 

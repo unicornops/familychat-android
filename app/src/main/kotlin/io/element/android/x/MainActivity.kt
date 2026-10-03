@@ -51,11 +51,13 @@ private val loggerTag = LoggerTag("MainActivity")
 class MainActivity : NodeActivity() {
     private lateinit var mainNode: MainNode
     private lateinit var appBindings: AppBindings
+    private lateinit var launchIntentTracker: LaunchIntentTracker
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Timber.tag(loggerTag.value).d("onCreate, with savedInstanceState: ${savedInstanceState != null}")
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        launchIntentTracker = LaunchIntentTracker(savedInstanceState)
         appBindings = bindings()
         setupLockManagement(appBindings.lockScreenService(), appBindings.lockScreenEntryPoint())
         enableEdgeToEdge()
@@ -125,7 +127,9 @@ class MainActivity : NodeActivity() {
                         override fun init(node: MainNode) {
                             Timber.tag(loggerTag.value).d("onMainNodeInit")
                             mainNode = node
-                            mainNode.handleIntent(intent)
+                            if (launchIntentTracker.shouldHandleLaunchIntent()) {
+                                mainNode.handleIntent(intent)
+                            }
                         }
                     },
                 ),
@@ -167,7 +171,13 @@ class MainActivity : NodeActivity() {
             mainNode.handleIntent(intent)
         } else {
             setIntent(intent)
+            launchIntentTracker.onLaunchIntentReplaced()
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        launchIntentTracker.onSaveInstanceState(outState)
     }
 
     override fun onPause() {
