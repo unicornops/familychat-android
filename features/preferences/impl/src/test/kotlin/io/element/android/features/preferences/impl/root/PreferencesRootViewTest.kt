@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2026 Element Creations Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -151,6 +152,33 @@ class PreferencesRootViewTest : RobolectricTest() {
             )
             clickOn(CommonStrings.action_manage_account_and_devices)
         }
+    }
+
+    @Test
+    fun `click on the control panel invokes the expected callback with its url`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnceWithParam("https://panel.example.org") { callback ->
+            setView(
+                aPreferencesRootState(
+                    controlPanelUrl = "https://panel.example.org",
+                    eventSink = eventsRecorder,
+                ),
+                onOpenControlPanel = callback,
+            )
+            clickOn(R.string.screen_settings_control_panel)
+        }
+    }
+
+    @Test
+    fun `when controlPanelUrl is null, the control panel item is not shown`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        setView(
+            aPreferencesRootState(
+                controlPanelUrl = null,
+                eventSink = eventsRecorder,
+            ),
+        )
+        onNodeWithText(activity!!.getString(R.string.screen_settings_control_panel)).assertDoesNotExist()
     }
 
     @Test
@@ -450,6 +478,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
     onAddAccountClick: () -> Unit = EnsureNeverCalled(),
     onSecureBackupClick: () -> Unit = EnsureNeverCalled(),
     onManageAccountClick: (url: String) -> Unit = EnsureNeverCalledWithParam(),
+    onOpenControlPanel: (url: String) -> Unit = EnsureNeverCalledWithParam(),
     onLinkNewDeviceClick: () -> Unit = EnsureNeverCalled(),
     onOpenAnalytics: () -> Unit = EnsureNeverCalled(),
     onOpenRageShake: () -> Unit = EnsureNeverCalled(),
@@ -472,6 +501,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
             onAddAccountClick = onAddAccountClick,
             onSecureBackupClick = onSecureBackupClick,
             onManageAccountClick = onManageAccountClick,
+            onOpenControlPanel = onOpenControlPanel,
             onLinkNewDeviceClick = onLinkNewDeviceClick,
             onOpenAnalytics = onOpenAnalytics,
             onOpenRageShake = onOpenRageShake,

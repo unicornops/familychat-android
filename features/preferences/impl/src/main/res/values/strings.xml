@@ -8,5 +8,6 @@
 <!-- Family Chat strings. These are not managed by Localazy. -->
 <resources>
     <string name="screen_about_source_code_title">"Source code"</string>
+    <string name="screen_settings_control_panel">"Family control panel"</string>
     <string name="screen_about_source_code_description">"Family Chat is a fork of Element X Android by Element (AGPL-3.0); source at https://github.com/unicornops/familychat-android"</string>
 </resources>

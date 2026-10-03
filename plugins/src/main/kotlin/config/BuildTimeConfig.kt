@@ -34,6 +34,9 @@ object BuildTimeConfig {
     val URL_PRIVACY: String? = "https://safechat.family/privacy/"
     val URL_POLICY: String? = "https://safechat.family/privacy/"
 
+    /** The parents' control panel, linked from the settings behind the parental gate (#13). Empty hides the entry. */
+    val URL_CONTROL_PANEL: String? = "https://panel.safechat.family"
+
     /**
      * Location sharing, live location and maps (family-chat#232 decision 4, Play Families policy).
      * `false` forces an empty MapTiler key whatever the environment or local.properties say, so

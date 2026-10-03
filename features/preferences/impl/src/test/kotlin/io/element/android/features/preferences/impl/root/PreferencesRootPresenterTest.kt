@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -95,6 +96,7 @@ class PreferencesRootPresenterTest {
             assertThat(loadedState.showSecureBackup).isFalse()
             assertThat(loadedState.showSecureBackupBadge).isFalse()
             assertThat(loadedState.accountManagementUrl).isNull()
+            assertThat(loadedState.controlPanelUrl).isEqualTo("https://panel.safechat.family")
             assertThat(loadedState.showAnalyticsSettings).isFalse()
             assertThat(loadedState.showLinkNewDevice).isFalse()
             assertThat(loadedState.showDeveloperSettings).isTrue()

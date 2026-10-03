@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -32,6 +33,7 @@ open class PreferencesRootStatePreviewParam : PreviewParameterProvider<Preferenc
                 otherSessions = aMatrixUserList().drop(1).take(1),
                 showSecureBackup = true,
                 accountManagementUrl = "aUrl",
+                controlPanelUrl = "https://panel.safechat.family",
                 canReportBug = true,
                 showLinkNewDevice = true,
                 showAnalyticsSettings = true,
@@ -78,6 +80,7 @@ fun aPreferencesRootState(
     showSecureBackup: Boolean = false,
     showSecureBackupBadge: Boolean = false,
     accountManagementUrl: String? = null,
+    controlPanelUrl: String? = null,
     canReportBug: Boolean = false,
     showLinkNewDevice: Boolean = false,
     showAnalyticsSettings: Boolean = false,
@@ -97,6 +100,7 @@ fun aPreferencesRootState(
     showSecureBackup = showSecureBackup,
     showSecureBackupBadge = showSecureBackupBadge,
     accountManagementUrl = accountManagementUrl,
+    controlPanelUrl = controlPanelUrl,
     canReportBug = canReportBug,
     showLinkNewDevice = showLinkNewDevice,
     showAnalyticsSettings = showAnalyticsSettings,
