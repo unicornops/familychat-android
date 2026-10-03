@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -13,6 +14,7 @@ import app.cash.molecule.moleculeFlow
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import io.element.android.compound.theme.Theme
+import io.element.android.features.location.test.FakeLocationService
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.featureflag.api.FeatureFlags
 import io.element.android.libraries.featureflag.test.FakeFeatureFlagService
@@ -229,6 +231,24 @@ class AdvancedSettingsPresenterTest {
     }
 
     @Test
+    fun `present - no live location minimum distance without location sharing`() = runTest {
+        val presenter = createAdvancedSettingsPresenter(
+            appPreferencesStore = InMemoryAppPreferencesStore(liveLocationMinimumDistanceUpdate = 50),
+            locationService = FakeLocationService(isServiceAvailable = false),
+        )
+
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            skipItems(1)
+
+            with(awaitItem()) {
+                assertThat(liveLocationMinimumDistanceUpdate).isNull()
+            }
+        }
+    }
+
+    @Test
     fun `present - saving live location minimum distance updates app preferences`() = runTest {
         val appPreferencesStore = InMemoryAppPreferencesStore(
             liveLocationMinimumDistanceUpdate = 10,
@@ -383,11 +403,13 @@ class AdvancedSettingsPresenterTest {
         sessionPreferencesStore: InMemorySessionPreferencesStore = InMemorySessionPreferencesStore(),
         mediaPreviewConfigStateStore: MediaPreviewConfigStateStore = FakeMediaPreviewConfigStateStore(),
         featureFlagService: FakeFeatureFlagService = FakeFeatureFlagService(),
+        locationService: FakeLocationService = FakeLocationService(isServiceAvailable = true),
     ) = AdvancedSettingsPresenter(
         appPreferencesStore = appPreferencesStore,
         sessionPreferencesStore = sessionPreferencesStore,
         mediaPreviewConfigStateStore = mediaPreviewConfigStateStore,
         featureFlagService = featureFlagService,
         sessionCoroutineScope = this,
+        locationService = locationService,
     )
 }

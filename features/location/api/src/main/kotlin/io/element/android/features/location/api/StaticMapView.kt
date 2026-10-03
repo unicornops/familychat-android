@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2023-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -137,6 +138,18 @@ private fun BoxWithConstraintsScope.LoadableMapContent(
     val context = LocalContext.current
     var retryHash by remember { mutableIntStateOf(0) }
     val builder = rememberStaticMapBuilder(mapTilerConfig)
+    if (!builder.isServiceAvailable() && !LocalInspectionMode.current) {
+        // No map provider: never build a URL, which would send the coordinates to it without a key.
+        StaticMapPlaceholder(
+            painter = painterResource(R.drawable.blurred_map),
+            canReload = false,
+            contentDescription = contentDescription,
+            width = maxWidth,
+            height = maxHeight,
+            onLoadMapClick = {}
+        )
+        return
+    }
 
     val (painter, state, contentScale) = if (LocalInspectionMode.current) {
         val painter = painterResource(CommonDrawables.sample_map)

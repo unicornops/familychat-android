@@ -30,7 +30,10 @@ android {
         )
         buildConfigFieldStr(
             name = "MAPTILER_API_KEY",
-            value = if (isEnterpriseBuild) {
+            value = if (!BuildTimeConfig.LOCATION_SHARING_ENABLED) {
+                // Family Chat: no key means no map requests and no location sharing.
+                ""
+            } else if (isEnterpriseBuild) {
                 BuildTimeConfig.SERVICES_MAPTILER_APIKEY
             } else {
                 System.getenv("ELEMENT_ANDROID_MAPTILER_API_KEY")
