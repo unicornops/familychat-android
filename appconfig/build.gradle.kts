@@ -24,6 +24,10 @@ android {
             name = "URL_POLICY",
             value = BuildTimeConfig.URL_POLICY ?: "",
         )
+        buildConfigFieldStr(
+            name = "URL_CONTROL_PANEL",
+            value = BuildTimeConfig.URL_CONTROL_PANEL ?: "",
+        )
         // Empty until we host a rageshake server of our own (unicornops/family-chat#234).
         buildConfigFieldStr(
             name = "BUG_REPORT_URL",
