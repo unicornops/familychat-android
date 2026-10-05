@@ -1,3 +1,4 @@
+import config.BuildTimeConfig
 import extension.buildConfigFieldStr
 import extension.setupDependencyInjection
 import extension.testCommonDependencies
@@ -27,6 +28,11 @@ android {
 
     buildFeatures {
         buildConfig = true
+    }
+
+    defaultConfig {
+        // Family Chat (#19): no session import from Element Classic, see BuildTimeConfig.
+        buildConfigField("boolean", "ELEMENT_CLASSIC_IMPORT_ENABLED", BuildTimeConfig.ELEMENT_CLASSIC_IMPORT_ENABLED.toString())
     }
 
     buildTypes {

@@ -42,6 +42,13 @@ object BuildTimeConfig {
      */
     const val LOCATION_SHARING_ENABLED: Boolean = false
 
+    /**
+     * Upstream offers to sign in with the session of an installed Element Classic app, binding to its service on every
+     * sign-in screen. No Family Chat account ever lived there (#19), so the import is off and the app manifest drops
+     * the `<queries>` entry for Element Classic.
+     */
+    const val ELEMENT_CLASSIC_IMPORT_ENABLED: Boolean = false
+
     // No MapTiler key ships while LOCATION_SHARING_ENABLED is false.
     val SERVICES_MAPTILER_BASE_URL: String? = null
     val SERVICES_MAPTILER_APIKEY: String? = ""
