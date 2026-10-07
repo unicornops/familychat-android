@@ -68,11 +68,10 @@ object BuildTimeConfig {
     val BUG_REPORT_URL: String? = ""
     val BUG_REPORT_APP_NAME: String? = ""
 
-    // No Firebase project exists for family.safechat.android yet (unicornops/family-chat#234), so FCM is
-    // left out of the build and both store flavours use UnifiedPush. Flip this to `true` once the
-    // project exists and the placeholder values in libraries/pushproviders/firebase/src/*/res/values/firebase.xml
-    // have been replaced with the real ones.
-    const val PUSH_CONFIG_INCLUDE_FIREBASE: Boolean = false
+    // FCM through our Firebase project unicornops-familychat-push (gitops-environments, #10), in the gplay flavour only:
+    // the fdroid flavour stays free of Google code and uses UnifiedPush. Pushers are event-id-only, so no message
+    // content goes to Google (RustPushersService).
+    const val PUSH_CONFIG_INCLUDE_FIREBASE: Boolean = true
     const val PUSH_CONFIG_INCLUDE_UNIFIED_PUSH: Boolean = true
 
     // Pusher app ids registered with our Sygnal gateway (unicornops/family-chat#241).

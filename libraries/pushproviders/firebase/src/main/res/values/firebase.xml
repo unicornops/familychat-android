@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ~ PLACEHOLDER. Family Chat has no Firebase project yet (unicornops/family-chat#234).
-  ~ Element's credentials were removed from this fork; replace these values with the ones from
-  ~ the google-services.json of the Firebase Android app for `family.safechat.android`
-  ~ and set PUSH_CONFIG_INCLUDE_FIREBASE = true in plugins/src/main/kotlin/config/BuildTimeConfig.kt.
+  ~ Copyright 2026 Unicorn Operations Ltd.
+  ~
+  ~ Firebase project `unicornops-familychat-push`, managed with Terragrunt in
+  ~ unicornops/gitops-environments (google/unicornops/familychat-push-firebase). FCM only.
+  ~ Not secret: these values ship in every APK. The API key is restricted to the Firebase
+  ~ Installations and FCM registration APIs (and, once the signing keys exist, to the app's
+  ~ packages and certificates). Each build type's google_app_id is in src/<build type>/.
   -->
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="default_web_client_id" translatable="false">000000000000-placeholder.apps.googleusercontent.com</string>
-    <string name="gcm_defaultSenderId" translatable="false">000000000000</string>
-    <string name="google_api_key" translatable="false">PLACEHOLDER_GOOGLE_API_KEY</string>
-    <string name="google_crash_reporting_api_key" translatable="false">PLACEHOLDER_GOOGLE_API_KEY</string>
-    <string name="project_id" translatable="false" tools:ignore="UnusedResources">placeholder</string>
+    <string name="gcm_defaultSenderId" translatable="false">66912393075</string>
+    <string name="google_api_key" translatable="false">AIzaSyAJUPwGq-UB2wcunPJnVQCAkZMJmo-BcXo</string>
+    <string name="project_id" translatable="false" tools:ignore="UnusedResources">unicornops-familychat-push</string>
 </resources>

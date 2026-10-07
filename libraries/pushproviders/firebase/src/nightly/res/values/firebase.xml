@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ~ PLACEHOLDER. Family Chat has no Firebase project yet (unicornops/family-chat#234).
-  ~ Element's credentials were removed from this fork; replace these values with the ones from
-  ~ the google-services.json of the Firebase Android app for `family.safechat.android`
-  ~ and set PUSH_CONFIG_INCLUDE_FIREBASE = true in plugins/src/main/kotlin/config/BuildTimeConfig.kt.
+  ~ Copyright 2026 Unicorn Operations Ltd.
+  ~
+  ~ Firebase Android app for family.safechat.android.nightly (nightly build type) in project unicornops-familychat-push.
   -->
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="google_app_id" translatable="false" tools:ignore="UnusedResources">1:000000000000:android:0000000000000000000000</string>
+    <string name="google_app_id" translatable="false" tools:ignore="UnusedResources">1:66912393075:android:9e777c23c0cf5f1713d706</string>
 </resources>
