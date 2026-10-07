@@ -13,6 +13,7 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import io.element.android.compound.colors.SemanticColorsLightDark
 import io.element.android.features.enterprise.api.BugReportUrl
+import io.element.android.libraries.matrix.api.accountprovider.AccountProvider
 import io.element.android.libraries.matrix.test.A_HOMESERVER_URL
 import io.element.android.libraries.matrix.test.A_SESSION_ID
 import kotlinx.coroutines.test.runTest
@@ -20,9 +21,10 @@ import org.junit.Test
 
 class DefaultEnterpriseServiceTest {
     @Test
-    fun `homeserverAllowList only contains the Family Chat account provider`() {
+    fun `accountProviderAllowList only contains the Family Chat account provider`() {
         val defaultEnterpriseService = DefaultEnterpriseService()
-        assertThat(defaultEnterpriseService.homeserverAllowList()).containsExactly("safechat.family")
+        assertThat(defaultEnterpriseService.accountProviderAllowList()).containsExactly(AccountProvider.Generic("safechat.family"))
+        assertThat(defaultEnterpriseService.canConnectToAnyAccountProvider()).isFalse()
     }
 
     @Test
@@ -81,7 +83,7 @@ class DefaultEnterpriseServiceTest {
     }
 
     @Test
-    fun `isAllowedAccountProvider accepts any well-formed server name, a family's own domain included`() = runTest {
+    fun `isAllowedToConnectToAccountProvider accepts any well-formed server name, a family's own domain included`() = runTest {
         val defaultEnterpriseService = DefaultEnterpriseService()
         listOf(
             "smith.safechat.family",
@@ -95,12 +97,12 @@ class DefaultEnterpriseServiceTest {
             // Allowed to start discovery; refused once it resolves outside the allowlist
             "evil.com",
         ).forEach {
-            assertThat(defaultEnterpriseService.isAllowedAccountProvider(it)).isTrue()
+            assertThat(defaultEnterpriseService.isAllowedToConnectToAccountProvider(AccountProvider.Generic(it))).isTrue()
         }
     }
 
     @Test
-    fun `isAllowedAccountProvider still refuses the apex and anything that is not a bare host`() = runTest {
+    fun `isAllowedToConnectToAccountProvider still refuses the apex and anything that is not a bare host`() = runTest {
         val defaultEnterpriseService = DefaultEnterpriseService()
         (
             notABareHost + listOf(
@@ -113,7 +115,7 @@ class DefaultEnterpriseServiceTest {
                 "",
             )
         ).forEach {
-            assertThat(defaultEnterpriseService.isAllowedAccountProvider(it)).isFalse()
+            assertThat(defaultEnterpriseService.isAllowedToConnectToAccountProvider(AccountProvider.Generic(it))).isFalse()
         }
     }
 

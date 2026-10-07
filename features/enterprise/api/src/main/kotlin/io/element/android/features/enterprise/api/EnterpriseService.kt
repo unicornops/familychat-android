@@ -12,6 +12,7 @@ package io.element.android.features.enterprise.api
 import androidx.compose.ui.graphics.Color
 import io.element.android.compound.colors.SemanticColorsLightDark
 import io.element.android.libraries.matrix.api.ClientUrlContentFetcher
+import io.element.android.libraries.matrix.api.accountprovider.AccountProvider
 import io.element.android.libraries.matrix.api.core.SessionId
 import kotlinx.coroutines.flow.Flow
 
@@ -37,42 +38,44 @@ interface EnterpriseService {
     suspend fun tweakMasUrl(url: String, urlContentFetcher: ClientUrlContentFetcher): String
 
     /**
-     * Returns the list of homeservers the user is allowed to sign in to.
-     *
-     * If the list is empty or contains the special value [ANY_ACCOUNT_PROVIDER], the user is allowed to sign in to any homeserver.
+     * Returns the list of account provider the user is allowed to sign in to.
      */
-    fun homeserverAllowList(): List<String>
+    fun accountProviderAllowList(): List<AccountProvider>
 
     /**
-     * The account provider every sign-in is locked to, or `null` when the user enters one (still restricted by
-     * [isAllowedAccountProvider] and [isAllowedResolvedHomeserverUrl]). Upstream this is the single entry of [homeserverAllowList], if any; a
-     * deployment whose single entry is only a parent domain (Family Chat: each family has its own subdomain)
-     * returns `null` so that the account provider entry step is shown.
+     * Whether the user is allowed to sign in to any account provider.
      */
-    fun forcedAccountProvider(): String? = homeserverAllowList().singleOrNull()
+    fun canConnectToAnyAccountProvider(): Boolean
 
     /**
-     * Whether the user is allowed to sign in to a given homeserver, according to [homeserverAllowList].
-     *
-     * This judges a homeserver the app talks to directly, without `.well-known` discovery: a URL resolved by
-     * discovery, or a host a sign-in link names to redeem its code against. A server name the user types or a
-     * link names as its account provider is judged by [isAllowedAccountProvider] instead.
-     *
-     * @param homeserverUrl the server the user is trying to use.
+     * The account provider every sign-in is locked to, or `null` when the user enters one. Upstream this is the single
+     * entry of [accountProviderAllowList] when [canConnectToAnyAccountProvider] is false; a deployment whose single
+     * entry is only a parent domain (Family Chat: each family has its own subdomain, or its own domain) returns `null`
+     * so that the account provider entry step is shown, still restricted by [isAllowedToConnectToAccountProvider] and
+     * [isAllowedResolvedHomeserverUrl].
      */
-    suspend fun isAllowedToConnectToHomeserver(homeserverUrl: String): Boolean
+    fun forcedAccountProvider(): AccountProvider? =
+        if (canConnectToAnyAccountProvider()) null else accountProviderAllowList().singleOrNull()
 
     /**
-     * Whether the user may start signing in with this account provider (a server name, typed or from a link),
-     * before `.well-known` discovery has told where its homeserver is. Upstream this is the same check as
-     * [isAllowedToConnectToHomeserver].
+     * Whether the user is allowed to sign in to a given homeserver, according to [accountProviderAllowList].
      *
-     * Family Chat accepts any well-formed server name here, a family's own domain included: what is judged
-     * against the allowlist is where it resolves to, see [isAllowedResolvedHomeserverUrl].
+     * Family Chat: this judges the account provider the user types or a link names, before `.well-known` discovery
+     * has told where its homeserver is, so any well-formed server name (a family's own domain included) is allowed;
+     * what is held to the allowlist is where it resolves to, see [isAllowedResolvedHomeserverUrl].
      *
-     * @param accountProvider the server name, optionally prefixed with `https://`.
+     * @param accountProvider the account provider the user is trying to use.
      */
-    suspend fun isAllowedAccountProvider(accountProvider: String): Boolean = isAllowedToConnectToHomeserver(accountProvider)
+    suspend fun isAllowedToConnectToAccountProvider(accountProvider: AccountProvider): Boolean
+
+    /**
+     * Whether the app may talk to this homeserver directly, without `.well-known` discovery: the URL discovery resolved
+     * to, or the host a sign-in link names to redeem its code against. Upstream there is no separate check.
+     *
+     * @param homeserverUrl the homeserver, as `host[:port]` optionally prefixed with `https://`.
+     */
+    suspend fun isAllowedToConnectToHomeserver(homeserverUrl: String): Boolean =
+        isAllowedToConnectToAccountProvider(AccountProvider.Generic(homeserverUrl))
 
     /**
      * Whether the homeserver URL an account provider resolved to (after `.well-known` discovery) may be used.
@@ -130,14 +133,4 @@ interface EnterpriseService {
      * @param sessionId the session whose channel is requested.
      */
     fun getNoisyNotificationChannelId(sessionId: SessionId): String?
-
-    companion object {
-        const val ANY_ACCOUNT_PROVIDER = "*"
-    }
-}
-
-fun EnterpriseService.canConnectToAnyHomeserver(): Boolean {
-    return homeserverAllowList().let {
-        it.isEmpty() || it.contains(EnterpriseService.ANY_ACCOUNT_PROVIDER)
-    }
 }

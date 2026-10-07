@@ -16,6 +16,7 @@ import io.element.android.compound.colors.SemanticColorsLightDark
 import io.element.android.features.enterprise.api.BugReportUrl
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.libraries.matrix.api.ClientUrlContentFetcher
+import io.element.android.libraries.matrix.api.accountprovider.AccountProvider
 import io.element.android.libraries.matrix.api.core.SessionId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -29,14 +30,16 @@ class DefaultEnterpriseService : EnterpriseService {
      * Family Chat only connects to family servers under [ACCOUNT_PROVIDER]. It is the configured account
      * provider (the error messages name it), but it is not itself a homeserver, see [forcedAccountProvider].
      */
-    override fun homeserverAllowList(): List<String> = listOf(ACCOUNT_PROVIDER)
+    override fun accountProviderAllowList(): List<AccountProvider> = listOf(AccountProvider.Generic(ACCOUNT_PROVIDER))
+
+    override fun canConnectToAnyAccountProvider(): Boolean = false
 
     /**
      * Nothing is forced: every family has its own server (`<family>.safechat.family`, or the family's own domain
-     * delegating to one), so the user enters theirs, or a sign-in link names it. [isAllowedAccountProvider] and
-     * [isAllowedResolvedHomeserverUrl] keep that within the allowlist.
+     * delegating to one), so the user enters theirs, or a sign-in link names it. [isAllowedToConnectToAccountProvider]
+     * and [isAllowedResolvedHomeserverUrl] keep that within the allowlist.
      */
-    override fun forcedAccountProvider(): String? = null
+    override fun forcedAccountProvider(): AccountProvider? = null
 
     /**
      * Allows every family subdomain of [ACCOUNT_PROVIDER] and nothing else, not even the apex, which serves the
@@ -59,9 +62,18 @@ class DefaultEnterpriseService : EnterpriseService {
      * The input is held to the same strict shape as in [isAllowedToConnectToHomeserver]. The apex
      * [ACCOUNT_PROVIDER] is still refused: it is the website, never a family's server.
      */
-    override suspend fun isAllowedAccountProvider(accountProvider: String): Boolean {
-        val host = parseHost(accountProvider) ?: return false
+    override suspend fun isAllowedToConnectToAccountProvider(accountProvider: AccountProvider): Boolean {
+        val host = parseHost(accountProvider.rawValue()) ?: return false
         return host != ACCOUNT_PROVIDER
+    }
+
+    /**
+     * The value as entered or configured, before [AccountProvider.serverNameOrBaseUrl] sanitises it (it would also
+     * strip a path or other characters that [parseHost] must refuse rather than ignore).
+     */
+    private fun AccountProvider.rawValue(): String = when (this) {
+        is AccountProvider.Generic -> serverName
+        is AccountProvider.Managed -> if (canUseServerName) serverName else baseUrl
     }
 
     /**

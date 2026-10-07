@@ -60,6 +60,8 @@ class FakeFfiClient(
     private val withUtdHook: (UnableToDecryptDelegate) -> Unit = { lambdaError() },
     private val getProfileResult: (String) -> UserProfile = { aRustUserProfile() },
     private val homeserverLoginDetailsResult: () -> HomeserverLoginDetails = { lambdaError() },
+    private val loginResult: (String, String) -> Unit = { _, _ -> lambdaError() },
+    private val newLoginWithQrCodeHandlerResult: () -> LoginWithQrCodeHandler = { lambdaError() },
     private val getStoreSizesResult: () -> StoreSizes = { lambdaError() },
     private val createRoomResult: (CreateRoomParameters) -> String = { lambdaError() },
     private val homeserverCapabilities: HomeserverCapabilities = FakeFfiHomeserverCapabilities(),
@@ -71,19 +73,16 @@ class FakeFfiClient(
     private val getUrlResult: (String) -> ByteArray = { lambdaError() },
     private val contentScannerResult: () -> ContentScanner = { FakeFfiContentScanner() },
     private val closeResult: () -> Unit = {},
-    private val loginResult: (username: String, password: String) -> Unit = { _, _ -> lambdaError() },
     // The homeserver can change over the client's life (the SDK follows a login response's well_known).
     private val homeserverResult: () -> String = { homeserver },
     private val loginWithOauthCallbackResult: (String) -> Unit = { lambdaError() },
     private val logoutResult: () -> Unit = { lambdaError() },
-    private val newLoginWithQrCodeHandlerResult: () -> LoginWithQrCodeHandler = { lambdaError() },
 ) : Client(NoHandle) {
     override fun userId(): String = userId
     override fun deviceId(): String = deviceId
     override fun homeserver(): String = homeserverResult()
     override suspend fun loginWithOauthCallback(callbackUrl: String) = loginWithOauthCallbackResult(callbackUrl)
     override suspend fun logout() = logoutResult()
-    override fun newLoginWithQrCodeHandler(oauthConfiguration: OAuthConfiguration): LoginWithQrCodeHandler = newLoginWithQrCodeHandlerResult()
     override fun server(): String? = server
     override suspend fun notificationClient(processSetup: NotificationProcessSetup) = notificationClient
     override suspend fun getNotificationSettings(): NotificationSettings = notificationSettings
@@ -92,7 +91,6 @@ class FakeFfiClient(
     override fun setDelegate(delegate: ClientDelegate?): TaskHandle = FakeFfiTaskHandle()
     override suspend fun cachedAvatarUrl(): String? = null
     override suspend fun restoreSession(session: Session) = Unit
-    override suspend fun login(username: String, password: String, initialDeviceName: String?, deviceId: String?) = loginResult(username, password)
     override fun syncService(): SyncServiceBuilder = FakeFfiSyncServiceBuilder()
     override suspend fun spaceService(): SpaceService = FakeFfiSpaceService()
     override fun roomDirectorySearch(): RoomDirectorySearch = FakeFfiRoomDirectorySearch()
@@ -133,6 +131,14 @@ class FakeFfiClient(
 
     override suspend fun homeserverLoginDetails(): HomeserverLoginDetails {
         return homeserverLoginDetailsResult()
+    }
+
+    override suspend fun login(username: String, password: String, initialDeviceName: String?, deviceId: String?) {
+        loginResult(username, password)
+    }
+
+    override fun newLoginWithQrCodeHandler(oauthConfiguration: OAuthConfiguration): LoginWithQrCodeHandler {
+        return newLoginWithQrCodeHandlerResult()
     }
 
     override suspend fun setMediaRetentionPolicy(policy: MediaRetentionPolicy) {}

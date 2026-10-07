@@ -21,8 +21,10 @@ android {
     }
 
     testOptions {
-        // Family Chat: ParentalGateSafeContentTest opens a link, which reads the "no compatible app" message
-        unitTests.isIncludeAndroidResources = true
+        unitTests {
+            // Family Chat: ParentalGateSafeContentTest opens a link, which reads the "no compatible app" message
+            isIncludeAndroidResources = true
+        }
     }
 
     buildTypes {
@@ -47,5 +49,5 @@ dependencies {
     implementation(projects.libraries.testtags)
     implementation(projects.libraries.uiStrings)
 
-    testCommonDependencies(libs)
+    testCommonDependencies(libs, true)
 }

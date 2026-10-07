@@ -378,6 +378,7 @@ fun TextComposer(
                     waveform = voiceMessageState.waveform,
                     playbackProgress = voiceMessageState.playbackProgress,
                     time = voiceMessageState.time,
+                    duration = voiceMessageState.duration,
                     onPlayClick = onPlayVoiceMessageClick,
                     onPauseClick = onPauseVoiceMessageClick,
                     onSeek = onSeekVoiceMessage,
@@ -937,6 +938,7 @@ internal fun TextComposerVoicePreview() = ElementPreview {
                 showCursor = false,
                 waveform = WaveFormSamples.realisticWaveForm,
                 time = 0.seconds,
+                duration = 61.seconds,
                 playbackProgress = 0.0f,
             ),
             VoiceMessageState.Preview(
@@ -945,6 +947,7 @@ internal fun TextComposerVoicePreview() = ElementPreview {
                 showCursor = true,
                 waveform = WaveFormSamples.realisticWaveForm,
                 time = 3.seconds,
+                duration = 0.seconds,
                 playbackProgress = 0.2f,
             ),
             VoiceMessageState.Preview(
@@ -953,6 +956,7 @@ internal fun TextComposerVoicePreview() = ElementPreview {
                 showCursor = false,
                 waveform = WaveFormSamples.realisticWaveForm,
                 time = 61.seconds,
+                duration = 61.seconds,
                 playbackProgress = 0.0f,
             ),
         )
@@ -980,6 +984,7 @@ internal fun TextComposerVoiceNotEncryptedPreview() = ElementPreview {
                 showCursor = false,
                 waveform = WaveFormSamples.realisticWaveForm,
                 time = 0.seconds,
+                duration = 61.seconds,
                 playbackProgress = 0.0f
             ),
             VoiceMessageState.Preview(
@@ -988,6 +993,7 @@ internal fun TextComposerVoiceNotEncryptedPreview() = ElementPreview {
                 showCursor = true,
                 waveform = WaveFormSamples.realisticWaveForm,
                 time = 3.seconds,
+                duration = 0.seconds,
                 playbackProgress = 0.2f
             ),
             VoiceMessageState.Preview(
@@ -996,6 +1002,7 @@ internal fun TextComposerVoiceNotEncryptedPreview() = ElementPreview {
                 showCursor = false,
                 waveform = WaveFormSamples.realisticWaveForm,
                 time = 61.seconds,
+                duration = 61.seconds,
                 playbackProgress = 0.0f
             ),
         )

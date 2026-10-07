@@ -10,7 +10,6 @@
 package io.element.android.features.login.impl.screens.onboarding
 
 import com.google.common.truth.Truth.assertThat
-import io.element.android.appconfig.AuthenticationConfig
 import io.element.android.appconfig.OnBoardingConfig
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.features.enterprise.api.IsEnterpriseBuild
@@ -24,6 +23,8 @@ import io.element.android.features.login.impl.localnetwork.LocalNetworkPermissio
 import io.element.android.features.login.impl.login.LoginModePresenter
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.core.meta.BuildMeta
+import io.element.android.libraries.matrix.api.accountprovider.AccountProvider
+import io.element.android.libraries.matrix.api.accountprovider.matrixOrgAccountProvider
 import io.element.android.libraries.matrix.api.auth.AuthenticationException
 import io.element.android.libraries.matrix.api.auth.MatrixAuthenticationService
 import io.element.android.libraries.matrix.api.auth.MatrixHomeServerDetails
@@ -34,6 +35,7 @@ import io.element.android.libraries.matrix.test.AN_EXCEPTION
 import io.element.android.libraries.matrix.test.A_HOMESERVER_URL
 import io.element.android.libraries.matrix.test.A_HOMESERVER_URL_2
 import io.element.android.libraries.matrix.test.A_LOGIN_HINT
+import io.element.android.libraries.matrix.test.accountprovider.anAccountProviderManaged
 import io.element.android.libraries.matrix.test.auth.FakeMatrixAuthenticationService
 import io.element.android.libraries.matrix.test.auth.aMatrixHomeServerDetails
 import io.element.android.libraries.matrix.test.core.aBuildMeta
@@ -91,7 +93,8 @@ class OnBoardingPresenterTest {
         val presenter = createPresenter(
             buildMeta = buildMeta,
             enterpriseService = FakeEnterpriseService(
-                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG, EnterpriseService.ANY_ACCOUNT_PROVIDER) },
+                accountProviderAllowListResult = { listOf(anAccountProviderManaged(serverName = ACCOUNT_PROVIDER_FROM_CONFIG)) },
+                canConnectToAnyAccountProviderResult = { true },
             ),
         )
         presenter.test {
@@ -193,15 +196,16 @@ class OnBoardingPresenterTest {
                 showBackButton = false,
             ),
             enterpriseService = FakeEnterpriseService(
-                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG, EnterpriseService.ANY_ACCOUNT_PROVIDER) },
-                isAllowedToConnectToHomeserverResult = { true },
+                accountProviderAllowListResult = { listOf(anAccountProviderManaged(serverName = ACCOUNT_PROVIDER_FROM_CONFIG)) },
+                canConnectToAnyAccountProviderResult = { true },
+                isAllowedToConnectToAccountProviderResult = { true },
                 isElementProEnforcedResult = { false },
             ),
         )
         presenter.test {
             skipItems(3)
             awaitItem().also {
-                assertThat(it.defaultAccountProvider).isEqualTo(ACCOUNT_PROVIDER_FROM_LINK)
+                assertThat(it.defaultAccountProvider).isEqualTo(AccountProvider.Generic(ACCOUNT_PROVIDER_FROM_LINK))
                 assertThat(it.canLoginWithQrCode).isFalse()
                 assertThat(it.canCreateAccount).isFalse()
             }
@@ -217,8 +221,14 @@ class OnBoardingPresenterTest {
                 showBackButton = false,
             ),
             enterpriseService = FakeEnterpriseService(
-                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG, ACCOUNT_PROVIDER_FROM_CONFIG_2) },
-                isAllowedToConnectToHomeserverResult = { false },
+                accountProviderAllowListResult = {
+                    listOf(
+                        anAccountProviderManaged(serverName = ACCOUNT_PROVIDER_FROM_CONFIG),
+                        anAccountProviderManaged(serverName = ACCOUNT_PROVIDER_FROM_CONFIG_2)
+                    )
+                },
+                canConnectToAnyAccountProviderResult = { false },
+                isAllowedToConnectToAccountProviderResult = { false },
             ),
         )
         presenter.test {
@@ -240,13 +250,14 @@ class OnBoardingPresenterTest {
                 showBackButton = false,
             ),
             enterpriseService = FakeEnterpriseService(
-                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
+                accountProviderAllowListResult = { listOf(anAccountProviderManaged(serverName = ACCOUNT_PROVIDER_FROM_CONFIG)) },
+                canConnectToAnyAccountProviderResult = { false },
             )
         )
         presenter.test {
             skipItems(1)
             awaitItem().also {
-                assertThat(it.defaultAccountProvider).isEqualTo(ACCOUNT_PROVIDER_FROM_CONFIG)
+                assertThat(it.defaultAccountProvider).isEqualTo(anAccountProviderManaged(serverName = ACCOUNT_PROVIDER_FROM_CONFIG))
                 assertThat(it.canLoginWithQrCode).isTrue()
                 assertThat(it.canCreateAccount).isFalse()
             }
@@ -262,15 +273,16 @@ class OnBoardingPresenterTest {
                 showBackButton = false,
             ),
             enterpriseService = FakeEnterpriseService(
-                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
-                isAllowedToConnectToHomeserverResult = { true },
+                accountProviderAllowListResult = { listOf(AccountProvider.Generic(ACCOUNT_PROVIDER_FROM_CONFIG)) },
+                canConnectToAnyAccountProviderResult = { false },
+                isAllowedToConnectToAccountProviderResult = { true },
                 isElementProEnforcedResult = { false },
             )
         )
         presenter.test {
             // The link's account provider passed the allowlist: it wins over the forced one
-            val state = consumeItemsUntilPredicate { it.defaultAccountProvider == ACCOUNT_PROVIDER_FROM_LINK }.last()
-            assertThat(state.defaultAccountProvider).isEqualTo(ACCOUNT_PROVIDER_FROM_LINK)
+            val state = consumeItemsUntilPredicate { it.defaultAccountProvider == AccountProvider.Generic(ACCOUNT_PROVIDER_FROM_LINK) }.last()
+            assertThat(state.defaultAccountProvider).isEqualTo(AccountProvider.Generic(ACCOUNT_PROVIDER_FROM_LINK))
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -288,11 +300,12 @@ class OnBoardingPresenterTest {
                 showBackButton = false,
             ),
             enterpriseService = FakeEnterpriseService(
-                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
+                accountProviderAllowListResult = { listOf(AccountProvider.Generic(ACCOUNT_PROVIDER_FROM_CONFIG)) },
+                canConnectToAnyAccountProviderResult = { false },
                 forcedAccountProviderResult = { null },
                 // Not a family homeserver itself, but a well-formed server name: judged on where it resolves
                 isAllowedToConnectToHomeserverResult = { false },
-                isAllowedAccountProviderResult = { it == "smith.ie" },
+                isAllowedToConnectToAccountProviderResult = { it.serverNameOrBaseUrl() == "smith.ie" },
                 isElementProEnforcedResult = { false },
             ),
             loginModePresenter = createLoginModePresenter(
@@ -301,8 +314,8 @@ class OnBoardingPresenterTest {
         )
         presenter.test {
             // The family's own domain is used as the link's account provider, as for any family server
-            val state = consumeItemsUntilPredicate { it.defaultAccountProvider == "smith.ie" && !it.canLoginWithQrCode }.last()
-            state.eventSink(OnBoardingEvent.OnSignIn("smith.ie"))
+            val state = consumeItemsUntilPredicate { it.defaultAccountProvider == AccountProvider.Generic("smith.ie") && !it.canLoginWithQrCode }.last()
+            state.eventSink(OnBoardingEvent.OnSignIn(AccountProvider.Generic("smith.ie")))
             val failure = consumeItemsUntilPredicate { it.loginModeState.loginMode is AsyncData.Failure }.last()
             assertThat(failure.loginModeState.loginMode.errorOrNull()).isEqualTo(ChangeServerError.HomeserverNotAllowed)
             setHomeserverResult.assertions().isCalledOnce().with(value("smith.ie"))
@@ -324,17 +337,18 @@ class OnBoardingPresenterTest {
                 showBackButton = false,
             ),
             enterpriseService = FakeEnterpriseService(
-                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
+                accountProviderAllowListResult = { listOf(AccountProvider.Generic(ACCOUNT_PROVIDER_FROM_CONFIG)) },
+                canConnectToAnyAccountProviderResult = { false },
                 forcedAccountProviderResult = { null },
                 isAllowedToConnectToHomeserverResult = { false },
-                isAllowedAccountProviderResult = { it == "smith.ie" },
+                isAllowedToConnectToAccountProviderResult = { it.serverNameOrBaseUrl() == "smith.ie" },
                 isElementProEnforcedResult = { false },
             ),
             loginModePresenter = createLoginModePresenter(authenticationService = authenticationService),
         )
         presenter.test {
-            val state = consumeItemsUntilPredicate { it.defaultAccountProvider == "smith.ie" }.last()
-            state.eventSink(OnBoardingEvent.OnSignIn("smith.ie"))
+            val state = consumeItemsUntilPredicate { it.defaultAccountProvider == AccountProvider.Generic("smith.ie") }.last()
+            state.eventSink(OnBoardingEvent.OnSignIn(AccountProvider.Generic("smith.ie")))
             consumeItemsUntilPredicate { it.loginModeState.loginMode is AsyncData.Success }
             setHomeserverResult.assertions().isCalledOnce().with(value("smith.ie"))
             // The hint goes back onto the provider it belongs to
@@ -352,10 +366,11 @@ class OnBoardingPresenterTest {
                 showBackButton = false,
             ),
             enterpriseService = FakeEnterpriseService(
-                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
+                accountProviderAllowListResult = { listOf(AccountProvider.Generic(ACCOUNT_PROVIDER_FROM_CONFIG)) },
+                canConnectToAnyAccountProviderResult = { false },
                 forcedAccountProviderResult = { null },
                 isAllowedToConnectToHomeserverResult = { false },
-                isAllowedAccountProviderResult = { false },
+                isAllowedToConnectToAccountProviderResult = { false },
                 isElementProEnforcedResult = { false },
             ),
         )
@@ -371,7 +386,8 @@ class OnBoardingPresenterTest {
     fun `present - a single allowlist entry that is not forced lets the user enter their server`() = runTest {
         val presenter = createPresenter(
             enterpriseService = FakeEnterpriseService(
-                defaultHomeserverListResult = { listOf(ACCOUNT_PROVIDER_FROM_CONFIG) },
+                accountProviderAllowListResult = { listOf(AccountProvider.Generic(ACCOUNT_PROVIDER_FROM_CONFIG)) },
+                canConnectToAnyAccountProviderResult = { false },
                 forcedAccountProviderResult = { null },
             )
         )
@@ -381,6 +397,46 @@ class OnBoardingPresenterTest {
                 assertThat(it.mustChooseAccountProvider).isFalse()
                 assertThat(it.canCreateAccount).isFalse()
             }
+        }
+    }
+
+    @Test
+    fun `present - a single configured account provider is not forced when the user may use another one`() = runTest {
+        // A singleton allow list only forces the account provider when the user is not free to use another one.
+        val presenter = createPresenter(
+            enterpriseService = FakeEnterpriseService(
+                accountProviderAllowListResult = { listOf(anAccountProviderManaged(serverName = ACCOUNT_PROVIDER_FROM_CONFIG)) },
+                canConnectToAnyAccountProviderResult = { true },
+            ),
+        )
+        presenter.test {
+            awaitItem().also {
+                assertThat(it.defaultAccountProvider).isNull()
+                assertThat(it.mustChooseAccountProvider).isFalse()
+            }
+            skipItems(1)
+        }
+    }
+
+    @Test
+    fun `present - the user must choose when several account providers are configured and enforced`() = runTest {
+        val presenter = createPresenter(
+            enterpriseService = FakeEnterpriseService(
+                accountProviderAllowListResult = {
+                    listOf(
+                        anAccountProviderManaged(serverName = ACCOUNT_PROVIDER_FROM_CONFIG),
+                        anAccountProviderManaged(serverName = ACCOUNT_PROVIDER_FROM_CONFIG_2)
+                    )
+                },
+                canConnectToAnyAccountProviderResult = { false },
+            ),
+        )
+        presenter.test {
+            awaitItem().also {
+                assertThat(it.defaultAccountProvider).isNull()
+                assertThat(it.mustChooseAccountProvider).isTrue()
+            }
+            skipItems(1)
         }
     }
 
@@ -399,7 +455,7 @@ class OnBoardingPresenterTest {
                 showBackButton = false,
             ),
             enterpriseService = FakeEnterpriseService(
-                isAllowedToConnectToHomeserverResult = { true },
+                isAllowedToConnectToAccountProviderResult = { true },
                 isElementProEnforcedResult = { false },
             ),
             loginModePresenter = createLoginModePresenter(
@@ -410,12 +466,12 @@ class OnBoardingPresenterTest {
         presenter.test {
             skipItems(3)
             awaitItem().also {
-                assertThat(it.defaultAccountProvider).isEqualTo(A_HOMESERVER_URL)
-                assertThat(accountProviderDataSource.flow.first().url).isEqualTo(AuthenticationConfig.MATRIX_ORG_URL)
-                it.eventSink(OnBoardingEvent.OnSignIn(A_HOMESERVER_URL_2))
+                assertThat(it.defaultAccountProvider).isEqualTo(AccountProvider.Generic(A_HOMESERVER_URL))
+                assertThat(accountProviderDataSource.flow.first()).isEqualTo(matrixOrgAccountProvider)
+                it.eventSink(OnBoardingEvent.OnSignIn(AccountProvider.Generic(A_HOMESERVER_URL_2)))
                 skipItems(1) // Loading
                 // Account data source has been updated
-                assertThat(accountProviderDataSource.flow.first().url).isEqualTo(A_HOMESERVER_URL_2)
+                assertThat(accountProviderDataSource.flow.first()).isEqualTo(AccountProvider.Generic(A_HOMESERVER_URL_2))
                 // Check an error was returned
                 val submittedState = awaitItem()
                 assertThat(submittedState.loginModeState.loginMode).isInstanceOf(AsyncData.Failure::class.java)

@@ -132,7 +132,14 @@ configuration keys or code paths that need a Family Chat answer.
    `isElementProEnforced()`, which must stay `false`: since v26.09.2 upstream fetches
    `.well-known/element/element.json` there to send users to Element Pro), `LoginLinkPolicy`, the
    sign-in-code login (`SignInCodeStore`, `LoginTokenExchanger`) and `RustMatrixAuthenticationService`
-   (the resolved-homeserver backstop).
+   (the resolved-homeserver backstop). Since v26.09.3 upstream's `EnterpriseService` and
+   `AccountProviderAccessControl` take an `AccountProvider` (`accountProviderAllowList()`,
+   `canConnectToAnyAccountProvider()`); our additions on top are `forcedAccountProvider()`,
+   `isAllowedToConnectToHomeserver()` and `isAllowedResolvedHomeserverUrl()`. `AccountProvider` sanitising passes
+   server names to discovery without `https://`.
+7. **Settings:** since v26.09.3 settings are split into app and account settings. The location settings row is
+   hidden by `PreferencesRootState.showLocationSettings`, and the control-panel row lives in the account section
+   (`PreferencesAccountView`).
 3. **The parental gate:** the `libraries/parentalgate` module, the `androidutils` openers,
    `SafeUriHandler`/`ParentalGateSafeContent` in `ElementThemeApp`, the Konsist tripwire, the
    notification builders (`setAllowSystemGeneratedContextualActions(false)`), the Application's
