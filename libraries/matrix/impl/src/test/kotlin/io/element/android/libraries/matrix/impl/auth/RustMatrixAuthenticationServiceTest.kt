@@ -225,6 +225,38 @@ class RustMatrixAuthenticationServiceTest {
     }
 
     @Test
+    fun `loginWithToken leaves the client of a password login in progress open`() = runTest {
+        val events = mutableListOf<String>()
+        val sut = createRustMatrixAuthenticationService(
+            clientBuilderProvider = FakeSequentialClientBuilderProvider(
+                {
+                    FakeFfiClient(
+                        homeserver = A_FAMILY_HOMESERVER_URL,
+                        homeserverLoginDetailsResult = { FakeFfiHomeserverLoginDetails() },
+                        closeResult = { events.add("close password login client") },
+                    )
+                },
+                { FakeFfiClient(homeserver = A_FAMILY_HOMESERVER_URL, withUtdHook = {}, closeResult = { events.add("close sign-in code client") }) },
+                { FakeFfiClient(withUtdHook = {}) },
+            ),
+            loginTokenExchanger = FakeLoginTokenExchanger(exchangeResult = { _, _, _ -> aLoginTokenCredentials() }),
+        )
+        // A parent is on the password screen of their family's server...
+        assertThat(sut.setHomeserver("smith.safechat.family").isSuccess).isTrue()
+
+        // ...when a sign-in link is redeemed.
+        val result = sut.loginWithToken(
+            homeserverUrl = "https://smith.safechat.family",
+            token = "syl_token",
+            expectedUserId = A_USER_ID.value,
+            accountProvider = "smith.safechat.family",
+        )
+
+        assertThat(result.getOrNull()).isEqualTo(A_SESSION_ID)
+        assertThat(events).containsExactly("close sign-in code client")
+    }
+
+    @Test
     fun `loginWithToken reports a refused code and tears the temporary client down`() = runTest {
         val closeResult = lambdaRecorder<Unit> {}
         val logoutResult = lambdaRecorder<String, String, Unit> { _, _ -> }

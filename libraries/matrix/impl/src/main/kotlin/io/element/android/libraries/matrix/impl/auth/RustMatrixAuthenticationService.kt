@@ -292,7 +292,8 @@ class RustMatrixAuthenticationService(
             // created, as both use the same session paths and their SQLite stores must never be open together.
             newClient.close()
             client = null
-            finalizeClientCreation(sessionData)
+            // The shared client and session paths belong to a password, OAuth or QR login that may be in progress.
+            finalizeClientCreation(sessionData, ownsSharedState = false)
         }.onFailure {
             client?.close()
             // The server issued a device that the app is not going to use: sign it out again rather than leave
@@ -553,10 +554,17 @@ class RustMatrixAuthenticationService(
             }
         }
 
-    private suspend fun finalizeClientCreation(sessionData: SessionData): SessionId {
+    /**
+     * @param sessionData the session the login produced.
+     * @param ownsSharedState whether the login used the shared [currentClient] and [sessionPaths]. Family Chat: the
+     * sign-in-code login has its own client and paths, and must leave those of another login in progress alone.
+     */
+    private suspend fun finalizeClientCreation(sessionData: SessionData, ownsSharedState: Boolean = true): SessionId {
         // Close the client which was used to perform the login before creating the final client.
         // Both use the same session paths, so their SQLite stores must never be opened at the same time.
-        clear()
+        if (ownsSharedState) {
+            clear()
+        }
 
         val matrixClient = restoreSession(sessionData)
         // Apply enterprise hooks to the newly created client as soon as possible
@@ -572,7 +580,9 @@ class RustMatrixAuthenticationService(
 
         // The session paths now hold the data of the account which has just been logged in, so forget
         // them: they must not be deleted by the rotateSessionPath() of the next login attempt.
-        sessionPaths = null
+        if (ownsSharedState) {
+            sessionPaths = null
+        }
 
         return SessionId(sessionData.userId)
     }
