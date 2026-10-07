@@ -9,7 +9,7 @@
 # - TAG is v<yy.mm.r>-fc.<n> with n in 1..9 and r in 0..9 (see plugins/src/main/kotlin/config/FamilyChatVersion.kt);
 # - the upstream version in the tag is the one the tagged commit is built from (Versions.kt);
 # - the tagged commit is on familychat;
-# - CI passed on that commit: Test, APK Build and Code Quality, nothing failed.
+# - CI passed on that commit: the latest push runs of Test, APK Build and Code Quality succeeded.
 # Writes tag, fc and sha to GITHUB_OUTPUT. Needs TAG, REPO and GH_TOKEN; runs from a full clone (fetch-depth: 0).
 
 set -euo pipefail
@@ -36,26 +36,23 @@ if [[ "${tag_version}" != "${built_version}" ]]; then
     exit 1
 fi
 
-git fetch --no-tags origin familychat
-if ! git merge-base --is-ancestor "${sha}" FETCH_HEAD; then
+if ! git merge-base --is-ancestor "${sha}" origin/familychat; then
     echo "::error::${TAG} (${sha}) is not on familychat"
     exit 1
 fi
 
-# The check runs of the tagged commit, except this workflow's own jobs.
-release_jobs='["Check the release tag","Build and sign","Publish the GitHub pre-release"]'
-checks="$(gh api --paginate "repos/${REPO}/commits/${sha}/check-runs?per_page=100" \
-    --jq ".check_runs[] | select(.name as \$n | ${release_jobs} | index(\$n) | not) | {name, status, conclusion}" \
-    | jq -s .)"
-failed="$(jq -r '.[] | select(.status != "completed" or (.conclusion | IN("success", "skipped", "neutral") | not)) | "\(.name): \(.status) \(.conclusion)"' <<< "${checks}")"
-if [[ -n "${failed}" ]]; then
-    echo "::error::CI is not green on ${sha}:"
-    echo "${failed}"
-    exit 1
-fi
-for required in "Runs unit tests" "Build debug APKs" "Project Check Suite"; do
-    if ! jq -e --arg n "${required}" 'any(.[]; .name == $n)' <<< "${checks}" > /dev/null; then
-        echo "::error::CI check \"${required}\" has not run on ${sha}"
+# CI is judged on the push runs of the three CI workflows only: scheduled workflows (upstream sync, Gradle wrapper
+# update) also run on the familychat tip and attach their own, unrelated check runs to it.
+runs="$(gh api --paginate "repos/${REPO}/actions/runs?head_sha=${sha}&event=push&per_page=100" \
+    --jq '.workflow_runs[] | {path, status, conclusion, run_number}' | jq -s .)"
+for workflow in build.yml tests.yml quality.yml; do
+    latest="$(jq -c --arg p ".github/workflows/${workflow}" '[.[] | select(.path == $p)] | max_by(.run_number) // empty' <<< "${runs}")"
+    if [[ -z "${latest}" ]]; then
+        echo "::error::${workflow} has not run on ${sha} (a push to familychat runs it)"
+        exit 1
+    fi
+    if [[ "$(jq -r '.status + " " + (.conclusion // "")' <<< "${latest}")" != "completed success" ]]; then
+        echo "::error::${workflow} is not green on ${sha}: $(jq -r '.status + " " + (.conclusion // "")' <<< "${latest}")"
         exit 1
     fi
 done

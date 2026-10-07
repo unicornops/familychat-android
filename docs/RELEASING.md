@@ -21,8 +21,8 @@ Pushing a tag `v<upstream version>-fc.<n>` on `familychat` runs `.github/workflo
 
 | Job | Environment | Does |
 |---|---|---|
-| Check the release tag | none (no secrets) | Checks the tag format, that the tagged commit is on `familychat`, that the tag's upstream version is the one the commit is built from, and that CI (Test, APK Build, Code Quality) passed on it. |
-| Build and sign | `release` (needs Rob's approval) | Builds the **F-Droid APKs** (UnifiedPush only) signed with the **direct-distribution key**, and, once the upload key exists, the **Play AAB** signed with the **upload key**, uploaded to the Play **internal** track once the Play service account exists. Generates a CycloneDX SBOM and `SHA256SUMS`. |
+| Check the release tag | none (no secrets) | Checks the tag format, that the tagged commit is on `familychat`, that the tag's upstream version is the one the commit is built from, and that the latest push runs of Test, APK Build and Code Quality succeeded on it (scheduled workflows on the same commit are ignored). |
+| Build and sign | `release` (needs Rob's approval) | Builds the **F-Droid APKs** (UnifiedPush only) signed with the **direct-distribution key**, and, once the upload key exists, the **Play AAB** signed with the **upload key** (kept 30 days as a workflow artefact), uploaded to the Play **internal** track once the Play service account exists; a failed Play upload is a warning, not a failure. Generates a CycloneDX SBOM of the F-Droid release dependencies (CycloneDX Gradle plugin, applied by `.github/workflows/scripts/cyclonedx.init.gradle.kts`) and `SHA256SUMS`. |
 | Publish the GitHub pre-release | none | Attests the build provenance of every file and publishes a **pre-release** with the APKs (arm64-v8a, armeabi-v7a and universal), their R8 mapping, the SBOM and `SHA256SUMS`, and notes made of the pull requests merged since the previous release tag. |
 
 Every release has a public tag with its exact source, which is how the AGPL promise of family-chat#232 decision 2 is
@@ -51,7 +51,16 @@ would need a new scheme in `FamilyChatVersion` first.
 
 All release credentials are secrets of the GitHub environment **`release`**, with Rob as required reviewer, and
 nowhere else (no repo-level secrets). The environment itself is managed with Terragrunt in
-`unicornops/gitops-environments` (gitops-environments#31).
+`unicornops/gitops-environments` (gitops-environments#31), with:
+
+- **required reviewer:** Rob, so nothing signs or uploads without his approval;
+- **deployment policy:** only tags matching `v*-fc.*` and the `familychat` branch (for re-runs by hand) may use it;
+- a **tag ruleset** restricting the creation, update and deletion of `v*-fc.*` tags to admins, and **branch
+  protection** on `familychat`.
+
+The gate job is not a security boundary on its own: it runs from the tagged commit, so whoever can push a tag can
+change it. The approval, the deployment policy and the tag ruleset are what keep the keys safe. Create the environment
+before the first tag: a job naming a missing environment creates it without any protection.
 
 | Secret | What | Needed for |
 |---|---|---|
@@ -99,10 +108,11 @@ so `*_STORE_PASSWORD` and `*_KEY_PASSWORD` hold the same value. Use a different 
 3. Put the **app-signing key**'s SHA-256 fingerprint (Play Console → Setup → App signing) in
    `https://safechat.family/.well-known/assetlinks.json` (family-chat#236, #256), replacing the all-zero placeholder,
    so that sign-in links open the app directly.
-4. Create the Play Developer API service account in gitops-environments, grant it **Release to testing tracks** on the
-   app in Play Console (Users and permissions), and store its key as `PLAY_SERVICE_ACCOUNT_JSON`.
-5. The very first AAB must be uploaded **by hand** in Play Console (the API cannot create the first release of an app):
-   download it from the workflow run's artefacts.
+4. The very first AAB must be uploaded **by hand** in Play Console (the API cannot create the first release of an app):
+   cut a release with the upload key set but **without** `PLAY_SERVICE_ACCOUNT_JSON`, and download the AAB from the
+   run's `play-<tag>` artefact.
+5. Only then create the Play Developer API service account in gitops-environments, grant it **Release to testing
+   tracks** on the app in Play Console (Users and permissions), and store its key as `PLAY_SERVICE_ACCOUNT_JSON`.
 
 ## Cutting a release
 
@@ -123,7 +133,9 @@ so `*_STORE_PASSWORD` and `*_KEY_PASSWORD` hold the same value. Use a different 
    unicornops/familychat-android`.
 6. Install the APK on a device and smoke-test sign-in, messages and push; testers get the Play internal build.
 
-To build an existing tag again (a failed upload, a new secret), run the Release workflow by hand with that tag.
+To build an existing tag again (a new secret, a failed GitHub release), run the Release workflow by hand with that
+tag. A rebuild produces new (not byte-identical) files and replaces the release's assets, so avoid rebuilding a release
+that has been promoted; Play refuses a version code it already has, which shows as a warning.
 
 ## Promoting and rolling back
 

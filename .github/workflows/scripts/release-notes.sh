@@ -12,7 +12,8 @@ set -euo pipefail
 
 tag="$1"
 upstream="$(sed -E 's/^(v[0-9.]+)-fc\.[0-9]+$/\1/' <<< "${tag}")"
-previous="$(git tag --list 'v*-fc.*' --sort=-creatordate | grep -vx "${tag}" | head -n 1 || true)"
+# The release tag before this one in its history (not the newest tag: an older release may be built again).
+previous="$(git describe --tags --abbrev=0 --match 'v*-fc.*' "${tag}^" 2>/dev/null || true)"
 if [[ -z "${previous}" ]]; then
     # First release: everything since the fork, whose first commit of ours is the rebrand.
     first="$(git log --reverse --format='%H' --grep='^feat(brand): Family Chat branding' "${tag}" | head -n 1)"

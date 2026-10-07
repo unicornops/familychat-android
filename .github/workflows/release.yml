@@ -92,9 +92,9 @@ jobs:
             exit 1
           fi
           export FAMILYCHAT_RELEASE_KEYSTORE="$RUNNER_TEMP/direct.jks"
+          trap 'rm -f "$FAMILYCHAT_RELEASE_KEYSTORE"' EXIT
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$FAMILYCHAT_RELEASE_KEYSTORE"
           ./gradlew :app:assembleFdroidRelease "-Pfamilychat.fc=$FC" $CI_GRADLE_ARG_PROPERTIES
-          rm -f "$FAMILYCHAT_RELEASE_KEYSTORE"
       - name: Build the Play AAB, signed with the upload key
         id: aab
         env:
@@ -110,9 +110,9 @@ jobs:
             exit 0
           fi
           export FAMILYCHAT_RELEASE_KEYSTORE="$RUNNER_TEMP/upload.jks"
+          trap 'rm -f "$FAMILYCHAT_RELEASE_KEYSTORE"' EXIT
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$FAMILYCHAT_RELEASE_KEYSTORE"
           ./gradlew :app:bundleGplayRelease "-Pfamilychat.fc=$FC" $CI_GRADLE_ARG_PROPERTIES
-          rm -f "$FAMILYCHAT_RELEASE_KEYSTORE"
           echo "built=true" >> "$GITHUB_OUTPUT"
       - name: Collect the release files
         env:
@@ -128,14 +128,13 @@ jobs:
             cp app/build/outputs/bundle/gplayRelease/*.aab "play/familychat-$TAG.aab"
             cp app/build/outputs/mapping/gplayRelease/mapping.txt play/mapping.txt
           fi
+      # syft has no Android cataloger; the CycloneDX Gradle plugin reads the F-Droid release dependency graph instead.
       - name: Generate the SBOM
-        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-        with:
-          file: dist/familychat-${{ needs.gate.outputs.tag }}-universal.apk
-          format: cyclonedx-json
-          output-file: dist/familychat-${{ needs.gate.outputs.tag }}-sbom.cdx.json
-          upload-artifact: false
-          upload-release-assets: false
+        env:
+          TAG: ${{ needs.gate.outputs.tag }}
+        run: |
+          ./gradlew :app:cyclonedxDirectBom --init-script .github/workflows/scripts/cyclonedx.init.gradle.kts $CI_GRADLE_ARG_PROPERTIES
+          cp app/build/reports/cyclonedx/familychat-fdroid-release.cdx.json "dist/familychat-$TAG-sbom.cdx.json"
       - name: Write the checksums
         working-directory: dist
         run: sha256sum -- * > SHA256SUMS
@@ -145,6 +144,15 @@ jobs:
           name: release-${{ needs.gate.outputs.tag }}
           path: dist/
           if-no-files-found: error
+      - name: Upload the Play files
+        if: steps.aab.outputs.built == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          # The very first AAB of the app is uploaded by hand in Play Console (docs/RELEASING.md).
+          name: play-${{ needs.gate.outputs.tag }}
+          path: play/
+          if-no-files-found: error
+          retention-days: 30
       # In this job rather than its own, so that one approval of the release environment covers the whole release.
       - name: Check for the Play credentials
         id: play
@@ -159,7 +167,10 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Upload to the Play internal track
+        id: play-upload
         if: steps.play.outputs.present == 'true'
+        # A Play failure (e.g. a version code Play already has, on a rebuild) must not block the GitHub release.
+        continue-on-error: true
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -168,6 +179,9 @@ jobs:
           mappingFile: play/mapping.txt
           track: internal
           status: completed
+      - name: Report a failed Play upload
+        if: steps.play-upload.outcome == 'failure'
+        run: echo "::warning::The upload to Play failed; the GitHub release still goes ahead. See the step above."
 
   github-release:
     name: Publish the GitHub pre-release
