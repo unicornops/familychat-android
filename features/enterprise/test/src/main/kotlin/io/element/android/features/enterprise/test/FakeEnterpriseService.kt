@@ -14,6 +14,7 @@ import io.element.android.compound.colors.SemanticColorsLightDark
 import io.element.android.features.enterprise.api.BugReportUrl
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.libraries.matrix.api.ClientUrlContentFetcher
+import io.element.android.libraries.matrix.api.accountprovider.AccountProvider
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.tests.testutils.lambda.lambdaError
 import io.element.android.tests.testutils.simulateLongTask
@@ -23,11 +24,13 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class FakeEnterpriseService(
     private val isEnterpriseUserResult: (SessionId) -> Boolean = { lambdaError() },
-    private val defaultHomeserverListResult: () -> List<String> = { emptyList() },
-    private val forcedAccountProviderResult: () -> String? = { defaultHomeserverListResult().singleOrNull() },
+    private val accountProviderAllowListResult: () -> List<AccountProvider> = { emptyList() },
+    private val canConnectToAnyAccountProviderResult: () -> Boolean = { true },
+    private val isAllowedToConnectToAccountProviderResult: (AccountProvider) -> Boolean = { lambdaError() },
+    private val forcedAccountProviderResult: () -> AccountProvider? = {
+        if (canConnectToAnyAccountProviderResult()) null else accountProviderAllowListResult().singleOrNull()
+    },
     private val isAllowedToConnectToHomeserverResult: (String) -> Boolean = { lambdaError() },
-    // Like the interface default, the account provider check is the homeserver check unless a test says otherwise.
-    private val isAllowedAccountProviderResult: (String) -> Boolean = isAllowedToConnectToHomeserverResult,
     private val isAllowedResolvedHomeserverUrlResult: (String) -> Boolean = { lambdaError() },
     initialSemanticColors: SemanticColorsLightDark = SemanticColorsLightDark.default,
     initialBrandColor: Color? = null,
@@ -49,20 +52,24 @@ class FakeEnterpriseService(
         tweakMasUrlResult(url, urlContentFetcher)
     }
 
-    override fun homeserverAllowList(): List<String> {
-        return defaultHomeserverListResult()
+    override fun accountProviderAllowList(): List<AccountProvider> {
+        return accountProviderAllowListResult()
     }
 
-    override fun forcedAccountProvider(): String? {
+    override fun canConnectToAnyAccountProvider(): Boolean {
+        return canConnectToAnyAccountProviderResult()
+    }
+
+    override suspend fun isAllowedToConnectToAccountProvider(accountProvider: AccountProvider): Boolean = simulateLongTask {
+        isAllowedToConnectToAccountProviderResult(accountProvider)
+    }
+
+    override fun forcedAccountProvider(): AccountProvider? {
         return forcedAccountProviderResult()
     }
 
     override suspend fun isAllowedToConnectToHomeserver(homeserverUrl: String): Boolean = simulateLongTask {
         isAllowedToConnectToHomeserverResult(homeserverUrl)
-    }
-
-    override suspend fun isAllowedAccountProvider(accountProvider: String): Boolean = simulateLongTask {
-        isAllowedAccountProviderResult(accountProvider)
     }
 
     override suspend fun isAllowedResolvedHomeserverUrl(homeserverUrl: String): Boolean = simulateLongTask {

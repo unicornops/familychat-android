@@ -9,7 +9,7 @@ package io.element.android.appnav
 
 import io.element.android.features.login.api.LoginParams
 import io.element.android.features.login.api.accesscontrol.AccountProviderAccessControl
-import io.element.android.libraries.core.uri.ensureProtocol
+import io.element.android.libraries.matrix.api.accountprovider.AccountProvider
 import io.element.android.libraries.matrix.api.core.MatrixPatterns
 import timber.log.Timber
 
@@ -26,7 +26,7 @@ import timber.log.Timber
  *   allowed homeserver (`*.safechat.family`).
  */
 internal suspend fun LoginParams.sanitize(accessControl: AccountProviderAccessControl): LoginParams? {
-    if (!accessControl.isAllowedToConnectToAccountProvider(accountProvider.ensureProtocol())) {
+    if (!accessControl.isAllowedToConnectToAccountProvider(AccountProvider.Generic(accountProvider))) {
         Timber.w("Login link ignored, its account provider is not allowed")
         return null
     }

@@ -10,6 +10,7 @@ package io.element.android.appnav
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.login.api.LoginParams
 import io.element.android.features.login.test.accesscontrol.FakeAccountProviderAccessControl
+import io.element.android.libraries.matrix.api.accountprovider.AccountProvider
 import io.element.android.tests.testutils.lambda.lambdaRecorder
 import io.element.android.tests.testutils.lambda.value
 import kotlinx.coroutines.test.runTest
@@ -18,7 +19,9 @@ import org.junit.Test
 class LoginLinkPolicyTest {
     // The Family Chat rules, reduced to what these tests need: any server name but the apex may start discovery, and
     // only a family subdomain is a homeserver the app talks to directly.
-    private val isAllowedAccountProvider = lambdaRecorder<String, Boolean> { it != "https://safechat.family" && !it.contains('@') }
+    private val isAllowedAccountProvider = lambdaRecorder<AccountProvider, Boolean> {
+        it.serverNameOrBaseUrl() != "safechat.family" && !it.serverNameOrBaseUrl().contains('@')
+    }
     private val isAllowedHomeserver = lambdaRecorder<String, Boolean> { it.endsWith(".safechat.family") }
     private val accessControl = FakeAccountProviderAccessControl(
         isAllowedToConnectToAccountProviderResult = isAllowedAccountProvider,
@@ -35,7 +38,7 @@ class LoginLinkPolicyTest {
         )
 
         assertThat(link.sanitize(accessControl)).isEqualTo(link)
-        isAllowedAccountProvider.assertions().isCalledOnce().with(value("https://smith.ie"))
+        isAllowedAccountProvider.assertions().isCalledOnce().with(value(AccountProvider.Generic("smith.ie")))
         isAllowedHomeserver.assertions().isCalledOnce().with(value("https://smith.safechat.family"))
     }
 

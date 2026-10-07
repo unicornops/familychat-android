@@ -11,7 +11,6 @@ package io.element.android.features.login.impl.screens.confirmaccountprovider
 
 import app.cash.turbine.ReceiveTurbine
 import com.google.common.truth.Truth.assertThat
-import io.element.android.appconfig.AuthenticationConfig
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.features.enterprise.test.FakeEnterpriseService
 import io.element.android.features.login.impl.accesscontrol.DefaultAccountProviderAccessControl
@@ -24,10 +23,12 @@ import io.element.android.features.login.impl.login.LoginMode
 import io.element.android.features.login.impl.screens.createaccount.AccountCreationNotSupported
 import io.element.android.features.login.impl.screens.onboarding.createLoginModePresenter
 import io.element.android.libraries.architecture.AsyncData
+import io.element.android.libraries.matrix.api.accountprovider.AccountProvider
 import io.element.android.libraries.matrix.api.auth.AuthenticationException
 import io.element.android.libraries.matrix.api.auth.MatrixAuthenticationService
 import io.element.android.libraries.matrix.api.auth.MatrixHomeServerDetails
 import io.element.android.libraries.matrix.test.AN_EXCEPTION
+import io.element.android.libraries.matrix.test.accountprovider.anAccountProviderManaged
 import io.element.android.libraries.matrix.test.auth.FakeMatrixAuthenticationService
 import io.element.android.libraries.matrix.test.auth.aMatrixHomeServerDetails
 import io.element.android.libraries.oauth.api.OAuthAction
@@ -50,6 +51,11 @@ import org.junit.Test
 class ConfirmAccountProviderPresenterTest {
     @get:Rule
     val warmUpRule = WarmUpRule()
+
+    companion object {
+        private const val MATRIX_ORG_SERVER_NAME = "matrix.org"
+        private const val MATRIX_ORG_URL = "https://matrix.org"
+    }
 
     @Test
     fun `present - initial test`() = runTest {
@@ -75,7 +81,7 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             val successState = awaitLoginMode { it is AsyncData.Success }
             assertThat(successState.loginModeState.loginMode.dataOrNull()).isEqualTo(LoginMode.PasswordLogin)
             cancelAndIgnoreRemainingEvents()
@@ -94,7 +100,7 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             val successState = awaitLoginMode { it is AsyncData.Success }
             assertThat(successState.loginModeState.loginMode.dataOrNull()).isInstanceOf(LoginMode.OAuth::class.java)
             cancelAndIgnoreRemainingEvents()
@@ -115,7 +121,7 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             val successState = awaitLoginMode { it is AsyncData.Success }
             assertThat(successState.loginModeState.loginMode.dataOrNull()).isInstanceOf(LoginMode.OAuth::class.java)
             authenticationService.givenOAuthCancelError(AN_EXCEPTION)
@@ -140,7 +146,7 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             val successState = awaitLoginMode { it is AsyncData.Success }
             assertThat(successState.loginModeState.loginMode.dataOrNull()).isInstanceOf(LoginMode.OAuth::class.java)
             defaultOAuthActionFlow.post(OAuthAction.GoBack())
@@ -164,7 +170,7 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             awaitLoginMode { it is AsyncData.Loading }
             defaultOAuthActionFlow.post(OAuthAction.GoBack(toUnblock = true))
             val cancelFinalState = awaitLoginMode { it is AsyncData.Uninitialized }
@@ -187,7 +193,7 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             val successState = awaitLoginMode { it is AsyncData.Success }
             assertThat(successState.loginModeState.loginMode.dataOrNull()).isInstanceOf(LoginMode.OAuth::class.java)
             authenticationService.givenLoginError(AN_EXCEPTION)
@@ -212,7 +218,7 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             val successState = awaitLoginMode { it is AsyncData.Success }
             assertThat(successState.loginModeState.loginMode.dataOrNull()).isInstanceOf(LoginMode.OAuth::class.java)
             defaultOidcActionFlow.post(OAuthAction.Success("aUrl"))
@@ -234,7 +240,7 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink.invoke(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             // The account provider validation fails, so the login is never attempted.
             val failureState = awaitState { it.changeServerState.changeServerAction is AsyncData.Failure }
             assertThat(failureState.loginModeState.loginMode).isEqualTo(AsyncData.Uninitialized)
@@ -256,7 +262,7 @@ class ConfirmAccountProviderPresenterTest {
             val initialState = awaitItem()
 
             // Submit will return an error while validating the account provider
-            initialState.eventSink(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
 
             // Check an error was returned
             val submittedState = awaitState { it.changeServerState.changeServerAction is AsyncData.Failure }
@@ -281,7 +287,7 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             // Check an error was returned
             val submittedState = awaitLoginMode { it is AsyncData.Failure }
             assertThat(submittedState.loginModeState.loginMode.errorOrNull()).isInstanceOf(AccountCreationNotSupported::class.java)
@@ -306,7 +312,7 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             val submittedState = awaitLoginMode { it is AsyncData.Success }
             assertThat(submittedState.loginModeState.loginMode.dataOrNull()).isInstanceOf(LoginMode.OAuth::class.java)
             cancelAndIgnoreRemainingEvents()
@@ -351,7 +357,7 @@ class ConfirmAccountProviderPresenterTest {
             val suggestionState = awaitState { it.accountProviderSuggestion != null }
             suggestionState.eventSink(ConfirmAccountProviderEvent.Continue("randomcommunity.org"))
             awaitLoginMode { it is AsyncData.Success }
-            assertThat(submittedUrls.first()).isEqualTo("https://randomcommunity.org")
+            assertThat(submittedUrls.first()).isEqualTo("randomcommunity.org")
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -382,8 +388,7 @@ class ConfirmAccountProviderPresenterTest {
         val presenter = createConfirmAccountProviderPresenter(
             appPreferencesStore = InMemoryAppPreferencesStore(homeserverHistory = emptyList()),
             enterpriseService = FakeEnterpriseService(
-                // Preferred servers plus the "*" (any) wildcard: the wildcard is filtered out, the rest complete.
-                defaultHomeserverListResult = { listOf("https://element.io", EnterpriseService.ANY_ACCOUNT_PROVIDER) },
+                accountProviderAllowListResult = { listOf(anAccountProviderManaged(serverName = "element.io")) },
             ),
         )
         presenter.test {
@@ -398,7 +403,8 @@ class ConfirmAccountProviderPresenterTest {
     fun `present - a parent domain that is not forced is neither pre-filled nor suggested`() = runTest {
         // Family Chat: the allowlist is the parent domain of the family servers, and nothing is forced.
         val enterpriseService = FakeEnterpriseService(
-            defaultHomeserverListResult = { listOf("safechat.family") },
+            accountProviderAllowListResult = { listOf(AccountProvider.Generic("safechat.family")) },
+            canConnectToAnyAccountProviderResult = { false },
             forcedAccountProviderResult = { null },
         )
         val presenter = createConfirmAccountProviderPresenter(
@@ -411,6 +417,19 @@ class ConfirmAccountProviderPresenterTest {
             assertThat(initialState.accountProviderInput).isEmpty()
             initialState.eventSink(ConfirmAccountProviderEvent.UserInputChanged("safe"))
             assertThat(awaitState { it.accountProviderInput == "safe" }.accountProviderSuggestion).isNull()
+        }
+    }
+
+    @Test
+    fun `present - offers the previously used servers without the scheme as autocomplete suggestions`() = runTest {
+        val presenter = createConfirmAccountProviderPresenter(
+            appPreferencesStore = InMemoryAppPreferencesStore(homeserverHistory = listOf("https://previous.org")),
+        )
+        presenter.test {
+            val initialState = awaitItem()
+            initialState.eventSink(ConfirmAccountProviderEvent.UserInputChanged("prev"))
+            val suggestionState = awaitState { it.accountProviderInput == "prev" }
+            assertThat(suggestionState.accountProviderSuggestion).isEqualTo("previous.org")
         }
     }
 
@@ -459,7 +478,7 @@ class ConfirmAccountProviderPresenterTest {
             val initialState = awaitItem()
             initialState.eventSink(ConfirmAccountProviderEvent.Continue("matrix.org"))
             awaitLoginMode { it is AsyncData.Success }
-            assertThat(submittedUrls.first()).isEqualTo(AuthenticationConfig.MATRIX_ORG_URL)
+            assertThat(submittedUrls.first()).isEqualTo(MATRIX_ORG_SERVER_NAME)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -480,9 +499,9 @@ class ConfirmAccountProviderPresenterTest {
         )
         presenter.test {
             val initialState = awaitItem()
-            initialState.eventSink(ConfirmAccountProviderEvent.Continue(AuthenticationConfig.MATRIX_ORG_URL))
+            initialState.eventSink(ConfirmAccountProviderEvent.Continue(MATRIX_ORG_URL))
             awaitLoginMode { it is AsyncData.Success }
-            assertThat(submittedUrls).containsExactly(AuthenticationConfig.MATRIX_ORG_URL)
+            assertThat(submittedUrls).containsExactly(MATRIX_ORG_SERVER_NAME)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -501,7 +520,7 @@ class ConfirmAccountProviderPresenterTest {
             val initialState = awaitItem()
             initialState.eventSink(ConfirmAccountProviderEvent.Continue("@alice:example.org"))
             awaitLoginMode { it is AsyncData.Success }
-            assertThat(submittedUrls.first()).isEqualTo("https://example.org")
+            assertThat(submittedUrls.first()).isEqualTo("example.org")
             assertThat(authenticationService.getOAuthUrlLoginHint).isEqualTo("mxid:@alice:example.org")
             cancelAndIgnoreRemainingEvents()
         }
@@ -521,7 +540,7 @@ class ConfirmAccountProviderPresenterTest {
             val initialState = awaitItem()
             initialState.eventSink(ConfirmAccountProviderEvent.Continue("@alice:example.org:8448"))
             awaitLoginMode { it is AsyncData.Success }
-            assertThat(submittedUrls.first()).isEqualTo("https://example.org:8448")
+            assertThat(submittedUrls.first()).isEqualTo("example.org:8448")
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -573,7 +592,7 @@ class ConfirmAccountProviderPresenterTest {
             awaitItem().eventSink(ConfirmAccountProviderEvent.Continue("smith.ie"))
             val state = awaitLoginMode { it is AsyncData.Success }
             assertThat(state.loginModeState.loginMode.dataOrNull()).isEqualTo(LoginMode.PasswordLogin)
-            setHomeserverResult.assertions().isCalledOnce().with(value("https://smith.ie"))
+            setHomeserverResult.assertions().isCalledOnce().with(value("smith.ie"))
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -591,7 +610,7 @@ class ConfirmAccountProviderPresenterTest {
         presenter.test {
             awaitItem().eventSink(ConfirmAccountProviderEvent.Continue("@kid:smith.ie"))
             awaitLoginMode { it is AsyncData.Success }
-            setHomeserverResult.assertions().isCalledOnce().with(value("https://smith.ie"))
+            setHomeserverResult.assertions().isCalledOnce().with(value("smith.ie"))
             assertThat(authenticationService.getOAuthUrlLoginHint).isEqualTo("mxid:@kid:smith.ie")
             cancelAndIgnoreRemainingEvents()
         }
@@ -639,8 +658,8 @@ class ConfirmAccountProviderPresenterTest {
     /** The Family Chat rules, as far as the account provider step goes: any bare server name but the apex. */
     private fun aFamilyChatEnterpriseService() = FakeEnterpriseService(
         isAllowedToConnectToHomeserverResult = { lambdaError() },
-        isAllowedAccountProviderResult = { url ->
-            val host = url.removePrefix("https://")
+        isAllowedToConnectToAccountProviderResult = { accountProvider ->
+            val host = (accountProvider as AccountProvider.Generic).serverName.removePrefix("https://")
             host != "safechat.family" && host.none { it in "?#\\@/" }
         },
         isElementProEnforcedResult = { false },
@@ -671,7 +690,7 @@ class ConfirmAccountProviderPresenterTest {
         appPreferencesStore: AppPreferencesStore = InMemoryAppPreferencesStore(),
         enterpriseService: EnterpriseService = FakeEnterpriseService(),
         accessControlEnterpriseService: EnterpriseService = FakeEnterpriseService(
-            isAllowedToConnectToHomeserverResult = { true },
+            isAllowedToConnectToAccountProviderResult = { true },
             isElementProEnforcedResult = { false },
         ),
     ) = ConfirmAccountProviderPresenter(
