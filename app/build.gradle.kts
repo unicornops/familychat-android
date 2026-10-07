@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2025 Element Creations Ltd.
  * Copyright 2022-2025 New Vector Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -12,6 +13,7 @@ import com.android.build.api.variant.FilterConfiguration.FilterType.ABI
 import com.android.build.gradle.internal.tasks.factory.dependsOn
 import com.android.build.gradle.tasks.GenerateBuildConfig
 import config.BuildTimeConfig
+import config.FamilyChatVersion
 import extension.AssetCopyTask
 import extension.GitBranchNameValueSource
 import extension.GitRevisionValueSource
@@ -46,8 +48,10 @@ android {
     defaultConfig {
         applicationId = BuildTimeConfig.APPLICATION_ID
         targetSdk = Versions.TARGET_SDK
-        versionCode = Versions.VERSION_CODE
-        versionName = Versions.VERSION_NAME
+        // Family Chat release numbering (#7): the release workflow passes -Pfamilychat.fc=<n> from the v<version>-fc.<n> tag.
+        val familyChatRelease = providers.gradleProperty("familychat.fc").orNull?.toInt() ?: 0
+        versionCode = FamilyChatVersion.versionCode(familyChatRelease)
+        versionName = FamilyChatVersion.versionName(familyChatRelease)
 
         // Keep abiFilter for the universalApk
         ndk {
@@ -89,6 +93,15 @@ android {
             storeFile = file("./signature/debug.keystore")
             storePassword = "android"
         }
+        // Family Chat (#7): the release workflow signs with the key of the channel it builds (the Play upload key for the
+        // AAB, the direct-distribution key for the GitHub APK) from the protected `release` environment. Without these
+        // variables, release builds stay signed with the debug key, as before.
+        register("release") {
+            System.getenv("FAMILYCHAT_RELEASE_KEYSTORE")?.let { storeFile = file(it) }
+            storePassword = System.getenv("FAMILYCHAT_RELEASE_STORE_PASSWORD")
+            keyAlias = System.getenv("FAMILYCHAT_RELEASE_KEY_ALIAS")
+            keyPassword = System.getenv("FAMILYCHAT_RELEASE_KEY_PASSWORD")
+        }
         register("nightly") {
             keyAlias = System.getenv("FAMILYCHAT_ANDROID_NIGHTLY_KEYID")
                 ?: project.property("signing.familychat.nightly.keyId") as? String?
@@ -123,7 +136,11 @@ android {
                 "login_redirect_scheme",
                 oAuthRedirectSchemeBase,
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (System.getenv("FAMILYCHAT_RELEASE_KEYSTORE") != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
 
             optimization {
                 enable = true
