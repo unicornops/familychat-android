@@ -60,7 +60,8 @@ Work still to do is tracked in [unicornops/family-chat#234](https://github.com/u
 
 ## Status
 
-Pre-release. Nothing has been published to Google Play yet.
+Pre-release. Nothing has been published to Google Play yet. Releases are cut from `v<upstream>-fc.<n>` tags by the
+Release workflow, which publishes signed APKs as GitHub pre-releases: see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Minimum SDK version
 
