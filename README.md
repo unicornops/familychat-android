@@ -51,8 +51,8 @@ There is deliberately **no** private enterprise overlay: everything is rebranded
 * Website, privacy, terms and OAuth client metadata point at `safechat.family`.
 * No third-party analytics or crash reporting. PostHog and Sentry are excluded from the build
   entirely, and the MapTiler key is empty (location sharing stays disabled).
-* Push goes to our own gateway at `https://push.safechat.family`. UnifiedPush is kept and is
-  currently the only push provider; see [Push notifications](#push-notifications).
+* Push goes to our own gateway at `https://push.safechat.family`: FCM in the `gplay` flavour, UnifiedPush in
+  both; see [Push notifications](#push-notifications).
 * `LICENSE-COMMERCIAL` removed: that is Element's commercial offer, not ours. This fork is AGPL-3.0
   only. Upstream copyright and licence notices are kept.
 
@@ -80,26 +80,29 @@ To build against a local copy of the Rust SDK, see the
 
 ### Build variants
 
-Upstream's two store flavours are kept: `gplay` and `fdroid`. They currently produce the same push
-behaviour because Firebase is disabled (see below), so `gplay` is the one to build.
+Upstream's two store flavours are kept: `gplay` (Google Play: FCM and UnifiedPush) and `fdroid` (direct download:
+UnifiedPush only, no Google code).
 
 ### Signing
 
-There are no release signing keys yet. `release` and `nightly` builds fall back to upstream's
-checked-in debug keystore, so they must not be published. Play App Signing and an upload key stored in
-a GitHub environment are tracked in the parent issue.
+Release builds are signed by the Release workflow from `v<upstream>-fc.<n>` tags, with keys held in the protected
+`release` environment: see [docs/RELEASING.md](docs/RELEASING.md). Local and CI `release` and `nightly` builds without
+those keys fall back to the checked-in debug keystore and must not be published.
 
 ### Push notifications
 
-There is no Firebase project for `family.safechat.android` yet, so
-`BuildTimeConfig.PUSH_CONFIG_INCLUDE_FIREBASE` is `false` and the FCM push provider is left out of the
-build. Element's Firebase credentials have been removed from
-`libraries/pushproviders/firebase/src/*/res/values/firebase.xml` and replaced with obvious
-placeholders. To enable FCM: create the Firebase Android app, copy the values from its
-`google-services.json` into those files, and flip the flag back to `true`.
+**FCM** (`gplay` only): Firebase project `unicornops-familychat-push`, managed with Terragrunt in
+unicornops/gitops-environments (`google/unicornops/familychat-push-firebase`), with one Firebase Android app per build
+type. Its values are in `libraries/pushproviders/firebase/src/*/res/values/firebase.xml` (not secret: they ship in
+every APK) and `BuildTimeConfig.PUSH_CONFIG_INCLUDE_FIREBASE` is `true`. The Firebase messaging dependency excludes
+Analytics and measurement; `tools/check/check_families_manifest.sh` fails the build if they or the advertising ID
+ever come back.
 
-UnifiedPush works today and defaults to our gateway at `https://push.safechat.family`
-(hosting is tracked in unicornops/family-chat#241).
+**UnifiedPush** (both flavours) defaults to our gateway at `https://push.safechat.family`.
+
+Both register their pusher with `format: event_id_only` (`RustPushersService`), so the homeserver sends only the event
+and room ids through the gateway: no message content reaches Google or a UnifiedPush distributor. The gateway is
+Sygnal (unicornops/family-chat#241), whose app ids are `family.safechat.android`, `.debug` and `.nightly`.
 
 ## Merging upstream releases
 
