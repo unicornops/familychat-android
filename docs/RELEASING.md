@@ -23,7 +23,7 @@ Pushing a tag `v<upstream version>-fc.<n>` on `familychat` runs `.github/workflo
 |---|---|---|
 | Check the release tag | none (no secrets) | Checks the tag format, that the tagged commit is on `familychat`, that the tag's upstream version is the one the commit is built from, and that CI (Test, APK Build, Code Quality) passed on it. |
 | Build and sign | `release` (needs Rob's approval) | Builds the **F-Droid APKs** (UnifiedPush only) signed with the **direct-distribution key**, and, once the upload key exists, the **Play AAB** signed with the **upload key**, uploaded to the Play **internal** track once the Play service account exists. Generates a CycloneDX SBOM and `SHA256SUMS`. |
-| Publish the GitHub pre-release | none | Attests the build provenance of every file and publishes a **pre-release** with the APK, its R8 mapping, the SBOM and `SHA256SUMS`, and notes made of the pull requests merged since the previous release tag. |
+| Publish the GitHub pre-release | none | Attests the build provenance of every file and publishes a **pre-release** with the APKs (arm64-v8a, armeabi-v7a and universal), their R8 mapping, the SBOM and `SHA256SUMS`, and notes made of the pull requests merged since the previous release tag. |
 
 Every release has a public tag with its exact source, which is how the AGPL promise of family-chat#232 decision 2 is
 kept. The AAB is not attached to the GitHub release: it is not installable.
