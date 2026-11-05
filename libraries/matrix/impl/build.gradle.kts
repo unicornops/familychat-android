@@ -76,6 +76,7 @@ dependencies {
     implementation(platform(libs.network.okhttp.bom))
     implementation(libs.network.okhttp.okhttp)
     implementation(projects.libraries.preferences.api)
+    implementation(libs.serialization.json)
     implementation(projects.libraries.sessionStorage.api)
     implementation(projects.libraries.workmanager.api)
     implementation(projects.services.analytics.api)

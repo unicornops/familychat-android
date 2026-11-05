@@ -167,7 +167,7 @@ class RootFlowNodeTest : RobolectricTest() {
     fun `given no session, when a login link to a not allowed account provider is handled, then the login link is ignored`() = runTest {
         val rootFlowNode = createRootFlowNode(
             loginEntryPoint = FakeLoginEntryPoint { buildContext, _ -> node(buildContext) {} },
-            accountProviderAccessControl = FakeAccountProviderAccessControl { false },
+            accountProviderAccessControl = FakeAccountProviderAccessControl(isAllowedToConnectToAccountProviderResult = { false }),
         )
         rootFlowNode.parentNodeTestHelper()
         rootFlowNode.handleIntent(aLoginIntent())

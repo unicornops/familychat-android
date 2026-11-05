@@ -57,6 +57,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -138,7 +139,7 @@ class RustMatrixAuthenticationServiceTest {
                     )
                 }
             ),
-            sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> }),
+            sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _, _ -> }),
         )
 
         assertThat(sut.setHomeserver("smith.ie").isSuccess).isTrue()
@@ -203,7 +204,7 @@ class RustMatrixAuthenticationServiceTest {
 
     @Test
     fun `loginWithToken redeems the code against the given homeserver and stores the session`() = runTest {
-        val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> })
+        val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _, _ -> })
         val exchangeResult = lambdaRecorder<String, String, String, LoginTokenCredentials> { _, _, _ -> aLoginTokenCredentials() }
         val logoutResult = lambdaRecorder<String, String, Unit> { _, _ -> }
         val sut = createRustMatrixAuthenticationService(
@@ -323,7 +324,7 @@ class RustMatrixAuthenticationServiceTest {
                 aLoginTokenCredentials(userId = "@kid:smith.ie")
             }
             val sut = createRustMatrixAuthenticationService(
-                sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> }),
+                sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _, _ -> }),
                 clientBuilderProvider = aClientBuilderProvider(),
                 loginTokenExchanger = FakeLoginTokenExchanger(exchangeResult = exchangeResult),
             )
@@ -558,7 +559,7 @@ class RustMatrixAuthenticationServiceTest {
 
     @Test
     fun `loginWithToken completes even when the caller is cancelled`() = runTest {
-        val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> })
+        val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _, _ -> })
         val exchangeStarted = CompletableDeferred<Unit>()
         val releaseExchange = CompletableDeferred<Unit>()
         val sut = createRustMatrixAuthenticationService(
@@ -680,6 +681,8 @@ class RustMatrixAuthenticationServiceTest {
     fun `loginWithQrCode cancels the login task when it is cancelled`() = runTest {
         val cancelResult = lambdaRecorder<Unit> {}
         val sut = createRustMatrixAuthenticationService(
+            // Upstream tests on matrix.org: not the Family Chat allowlist
+            enterpriseService = anAnyHomeserverEnterpriseService(),
             clientBuilderProvider = FakeClientBuilderProvider(
                 provideResult = {
                     FakeFfiClientBuilder(
@@ -699,10 +702,14 @@ class RustMatrixAuthenticationServiceTest {
             ),
         )
 
-        val job = backgroundScope.launch {
+        // Family Chat: launched on the test scope, not backgroundScope. The Family Chat allowlist
+        // check delays a tick (simulateLongTask), and this coroutines version does not run
+        // backgroundScope coroutines from advanceUntilIdle, so the login would never start and the
+        // task would not be cancelled when the job is.
+        val job = launch {
             sut.loginWithQrCode(aSdkQrCodeLoginData()) {}
         }
-        runCurrent()
+        advanceUntilIdle()
         cancelResult.assertions().isNeverCalled()
         job.cancel()
         runCurrent()

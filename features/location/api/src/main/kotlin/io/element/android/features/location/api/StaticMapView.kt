@@ -140,7 +140,7 @@ private fun BoxWithConstraintsScope.LoadableMapContent(
     val context = LocalContext.current
     var retryHash by remember { mutableIntStateOf(0) }
     val builder = rememberStaticMapBuilder(mapTilerConfig)
-    if (!builder.isServiceAvailable() && !LocalInspectionMode.current) {
+    if (builder?.isServiceAvailable() == false && !LocalInspectionMode.current) {
         // No map provider: never build a URL, which would send the coordinates to it without a key.
         StaticMapPlaceholder(
             painter = painterResource(R.drawable.blurred_map),

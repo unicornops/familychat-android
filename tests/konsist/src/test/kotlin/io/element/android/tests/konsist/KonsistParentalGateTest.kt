@@ -71,7 +71,9 @@ class KonsistParentalGateTest {
         "libraries/mediaviewer/impl" to setOf("AndroidLocalMediaActions.kt"),
         "features/viewfolder/impl" to setOf("FileShare.kt"),
         // URLSpans for the timeline; their clicks go to MessagesNode.onLinkClick and the gated openers.
-        "features/messages/impl" to setOf("TextPillificationHelper.kt", "TimelineItemContentMessageFactory.kt"),
+        // DefaultTextPillificator (upstream's rename of TextPillificationHelper) lays those spans for the same,
+        // gated click path, never opening links itself.
+        "features/messages/impl" to setOf("DefaultTextPillificator.kt", "TimelineItemContentMessageFactory.kt"),
         // Opens a maps app, through startActivityBehindParentalGate.
         "features/location/impl" to setOf("AndroidLocationActions.kt"),
         // Launches Element Classic, through startActivityBehindParentalGate.
