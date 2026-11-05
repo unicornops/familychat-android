@@ -10,5 +10,5 @@
     <string name="screen_notification_settings_sound_element_default">"Family Chat Implicit"</string>
     <string name="screen_notification_settings_sound_element_fade">"Family Chat Fade"</string>
     <string name="screen_onboarding_welcome_title">Family Chat</string>
-    <string name="screen_room_timeline_legacy_call">"Apel neacceptat. Întrebați apelantul dacă poate utiliza noua aplicație Family Chat."</string>
+    <string name="screen_room_timeline_legacy_call">"Apel incompatibil. Întrebați apelantul dacă poate utiliza noua aplicație Family Chat."</string>
 </resources>
