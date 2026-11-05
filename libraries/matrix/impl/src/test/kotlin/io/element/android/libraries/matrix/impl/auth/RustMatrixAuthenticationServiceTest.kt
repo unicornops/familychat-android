@@ -7,6 +7,8 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package io.element.android.libraries.matrix.impl.auth
 
 import com.google.common.truth.Truth.assertThat
@@ -49,10 +51,13 @@ import io.element.android.tests.testutils.lambda.lambdaRecorder
 import io.element.android.tests.testutils.lambda.value
 import io.element.android.tests.testutils.testCoroutineDispatchers
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -671,6 +676,39 @@ class RustMatrixAuthenticationServiceTest {
         closeResult.assertions().isCalledOnce()
     }
 
+    @Test
+    fun `loginWithQrCode cancels the login task when it is cancelled`() = runTest {
+        val cancelResult = lambdaRecorder<Unit> {}
+        val sut = createRustMatrixAuthenticationService(
+            clientBuilderProvider = FakeClientBuilderProvider(
+                provideResult = {
+                    FakeFfiClientBuilder(
+                        buildResult = {
+                            FakeFfiClient(
+                                newLoginWithQrCodeHandlerResult = {
+                                    FakeFfiLoginWithQrCodeHandler(
+                                        scanResult = { awaitCancellation() },
+                                        cancelResult = cancelResult,
+                                    )
+                                },
+                                closeResult = {},
+                            )
+                        },
+                    )
+                },
+            ),
+        )
+
+        val job = backgroundScope.launch {
+            sut.loginWithQrCode(aSdkQrCodeLoginData()) {}
+        }
+        runCurrent()
+        cancelResult.assertions().isNeverCalled()
+        job.cancel()
+        runCurrent()
+        cancelResult.assertions().isCalledOnce()
+    }
+
     private fun aSdkQrCodeLoginData() = SdkQrCodeLoginData(
         FakeFfiQrCodeData(
             baseUrlResult = { A_HOMESERVER_URL },
@@ -761,7 +799,7 @@ class RustMatrixAuthenticationServiceTest {
     private fun anAnyHomeserverEnterpriseService() = FakeEnterpriseService(isAllowedResolvedHomeserverUrlResult = { true })
 
     private fun TestScope.createRustMatrixAuthenticationService(
-        sessionStore: SessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> }),
+        sessionStore: SessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _, _ -> }),
         clientBuilderProvider: ClientBuilderProvider = FakeClientBuilderProvider(),
         // The real Family Chat rules, not a copy of them
         enterpriseService: EnterpriseService = DefaultEnterpriseService(),
@@ -774,7 +812,7 @@ class RustMatrixAuthenticationServiceTest {
             sessionStore = sessionStore,
             clientBuilderProvider = clientBuilderProvider,
             // A successful login schedules the session's background work; that is not what these tests check.
-            workManagerScheduler = FakeWorkManagerScheduler(submitLambda = {}),
+            workManagerScheduler = FakeWorkManagerScheduler(submitLambda = {}, cancelLambda = { _, _ -> }),
             sqliteStoreBuilderProvider = sqliteStoreBuilderProvider,
         )
         return RustMatrixAuthenticationService(

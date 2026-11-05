@@ -11,7 +11,6 @@ package io.element.android.features.preferences.impl.account
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.enterprise.api.SessionEnterpriseService
 import io.element.android.features.enterprise.test.FakeSessionEnterpriseService
-import io.element.android.features.logout.api.direct.aDirectLogoutState
 import io.element.android.features.rageshake.api.RageshakeFeatureAvailability
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
 import io.element.android.libraries.featureflag.api.FeatureFlagService
@@ -67,7 +66,6 @@ class PreferencesAccountPresenterTest {
             assertThat(initialState.accountManagementUrl).isNull()
             assertThat(initialState.controlPanelUrl).isEqualTo("https://panel.safechat.family")
             assertThat(initialState.showLinkNewDevice).isFalse()
-            assertThat(initialState.directLogoutState).isEqualTo(aDirectLogoutState())
             assertThat(initialState.snackbarMessage).isNull()
             val loadedState = consumeItemsUntilPredicate { it.accountManagementUrl != null }.last()
             assertThat(loadedState.showSecureBackup).isFalse()
@@ -171,7 +169,6 @@ class PreferencesAccountPresenterTest {
         sessionVerificationService = sessionVerificationService,
         snackbarDispatcher = SnackbarDispatcher(),
         indicatorService = indicatorService,
-        directLogoutPresenter = { aDirectLogoutState() },
         rageshakeFeatureAvailability = rageshakeFeatureAvailability,
         featureFlagService = featureFlagService,
         sessionEnterpriseService = sessionEnterpriseService,
