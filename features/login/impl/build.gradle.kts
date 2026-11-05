@@ -82,6 +82,10 @@ dependencies {
     api(projects.features.login.api)
 
     testCommonDependencies(libs, true)
+    // Family Chat: fakes for the token-login presenter and the well-known discovery in the
+    // resolved-homeserver backstop tests. Dropped by the v26.10.1 textual merge, restored.
+    testImplementation(projects.features.login.test)
+    testImplementation(projects.libraries.wellknown.test)
     testImplementation(projects.features.enterprise.test)
     testImplementation(projects.features.preferences.test)
     testImplementation(projects.libraries.preferences.test)
