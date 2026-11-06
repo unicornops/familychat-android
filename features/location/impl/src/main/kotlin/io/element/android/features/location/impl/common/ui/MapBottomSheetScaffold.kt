@@ -8,6 +8,7 @@
 
 package io.element.android.features.location.impl.common.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -43,26 +44,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
-import io.element.android.features.enterprise.api.remoteconfig.MapTilerConfig
-import io.element.android.features.location.api.internal.rememberTileStyleUrl
-import io.element.android.features.location.impl.common.MapDefaults
-import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.core.data.tryOrNull
 import io.element.android.libraries.designsystem.text.toDp
 import io.element.android.libraries.designsystem.theme.components.BottomSheetScaffold
 import io.element.android.libraries.designsystem.theme.components.CircularProgressIndicator
-import org.maplibre.compose.camera.CameraState
-import org.maplibre.compose.camera.rememberCameraState
-import org.maplibre.compose.map.MapOptions
+import org.maplibre.compose.interaction.MapInteractions
+import org.maplibre.compose.map.MapState
+import org.maplibre.compose.map.MapUiOptions
 import org.maplibre.compose.map.MaplibreMap
-import org.maplibre.compose.overlay.MapOverlay
+import org.maplibre.compose.map.RenderOptions
 import org.maplibre.compose.overlay.MaplibreLogo
-import org.maplibre.compose.style.BaseStyle
-import org.maplibre.compose.util.MaplibreComposable
 import kotlin.math.roundToInt
 
 /**
@@ -73,43 +69,45 @@ import kotlin.math.roundToInt
  * - Updating camera position padding based on sheet height
  * - Rendering the MaplibreMap with proper ornament positioning
  *
- * @param customMapTilerConfig Optional custom style URL for the map
+ * @param mapState The map state (camera, style and layer content) for the map. `null` in
+ *   inspection/preview mode, where the native map cannot initialize and a placeholder is shown.
+ * @param isReady Used to gate rendering until the map should be displayed
  * @param modifier Modifier for the root layout
  * @param scaffoldState State for the bottom sheet scaffold
- * @param cameraState The camera state for the map
- * @param mapOptions The options to configure the map
+ * @param renderOptions The options to configure the map rendering
+ * @param interactions The gestures and camera interactions allowed on the map
+ * @param uiOptions The map UI options (gestures, scrolling, keys, first-frame behaviour)
  * @param sheetPeekHeight The height of the sheet when collapsed
  * @param sheetDragHandle Optional drag handle for the sheet
  * @param sheetSwipeEnabled Whether the sheet can be swiped
  * @param topBar The top app bar content
  * @param snackbarHost The snackbar host content
  * @param sheetContent The content to display in the bottom sheet
- * @param mapContent The content inside the MaplibreMap (layers, location pucks, etc.)
- * @param overlayContent Content to overlay on top of the map (FAB, pin icons, etc.)
+ * @param overlay Content to overlay on top of the map (FAB, pin icons, etc.)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapBottomSheetScaffold(
-    customMapTilerConfig: AsyncData<MapTilerConfig?>,
+    mapState: MapState?,
+    isReady: Boolean,
     modifier: Modifier = Modifier,
     scaffoldState: BottomSheetScaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = rememberBottomSheetState(
             initialValue = SheetValue.PartiallyExpanded,
         )
     ),
-    cameraState: CameraState = rememberCameraState(),
-    mapOptions: MapOptions = MapDefaults.options,
+    renderOptions: RenderOptions = RenderOptions.Standard,
+    interactions: MapInteractions = MapInteractions.Standard,
+    uiOptions: MapUiOptions = MapUiOptions.Standard,
     sheetPeekHeight: Dp = BottomSheetDefaults.SheetPeekHeight,
     sheetDragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     sheetSwipeEnabled: Boolean = true,
     topBar: (@Composable () -> Unit)? = null,
     snackbarHost: @Composable (SnackbarHostState) -> Unit = { SnackbarHost(it) },
-    sheetContent: @Composable ColumnScope.(PaddingValues) -> Unit = {},
-    mapContent: @Composable @MaplibreComposable () -> Unit = {},
-    overlayContent: @Composable BoxScope.(sheetPadding: PaddingValues) -> Unit = {},
+    sheetContent: @Composable ColumnScope.() -> Unit = {},
+    overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val density = LocalDensity.current
-
     val windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
     BoxWithConstraints(modifier = modifier.windowInsetsPadding(windowInsets)) {
         val layoutHeightPx by rememberUpdatedState(constraints.maxHeight)
@@ -127,7 +125,7 @@ fun MapBottomSheetScaffold(
             sheetContent = {
                 val maxContentHeight = (layoutHeightPx * 0.5f).roundToInt().toDp()
                 Column(modifier = Modifier.heightIn(max = maxContentHeight)) {
-                    sheetContent(sheetPadding)
+                    sheetContent()
                     Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
                 }
             },
@@ -137,33 +135,44 @@ fun MapBottomSheetScaffold(
             snackbarHost = snackbarHost,
             topBar = topBar,
         ) {
-            Box {
-                when (customMapTilerConfig) {
-                    is AsyncData.Success -> {
+            Box(modifier = Modifier.fillMaxSize()) {
+                when {
+                    isReady && mapState != null -> {
                         MaplibreMap(
-                            options = mapOptions,
-                            cameraPadding = sheetPadding,
-                            contentWindowInsets = WindowInsets(bottom = sheetPadding.calculateBottomPadding()),
-                            baseStyle = BaseStyle.Uri(rememberTileStyleUrl(customMapTilerConfig.data)),
-                            overlay = MapOverlay {
-                                Row(
-                                    Modifier
-                                        .align(Alignment.BottomStart)
-                                        .fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
+                            state = mapState,
+                            viewportInsets = sheetPadding,
+                            renderOptions = renderOptions,
+                            interactions = interactions,
+                            uiOptions = uiOptions,
+                            overlay = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(sheetPadding)
                                 ) {
-                                    // Family Chat (parental gate, unicornops/family-chat#232 decision 10): MapLibre's logo
-                                    // and attribution links open the browser directly. The logo is drawn without a click
-                                    // action, and MapAttribution opens the licence page behind the gate.
-                                    MaplibreLogo(onClick = null)
-                                    MapAttribution(modifier = Modifier.padding(8.dp))
+                                    Row(
+                                        Modifier
+                                            .align(Alignment.BottomStart)
+                                            .fillMaxWidth()
+                                            .padding(all = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        // Family Chat (parental gate, unicornops/family-chat#232 decision 10): MapLibre's logo
+                                        // and attribution links open the browser directly. The logo is drawn without a click
+                                        // action, and MapAttribution opens the licence page behind the gate.
+                                        MaplibreLogo(onClick = null)
+                                        MapAttribution()
+                                    }
                                 }
                             },
                             modifier = Modifier.fillMaxSize(),
-                            cameraState = cameraState,
-                            content = mapContent,
                         )
+                    }
+                    mapState == null -> {
+                        // Inspection/preview mode: the map cannot initialize, render a placeholder
+                        // matching MaplibreMap's own inspection rendering.
+                        Box(modifier = Modifier.fillMaxSize().background(Color.Gray))
                     }
                     else -> {
                         Box(modifier = Modifier.fillMaxSize()) {
@@ -171,7 +180,15 @@ fun MapBottomSheetScaffold(
                         }
                     }
                 }
-                overlayContent(sheetPadding)
+                // App overlay (FABs, pins, live-location indicators). Layered above the map so it is
+                // present even in inspection/preview mode, where the map is a placeholder.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(sheetPadding)
+                ) {
+                    overlay()
+                }
             }
         }
     }

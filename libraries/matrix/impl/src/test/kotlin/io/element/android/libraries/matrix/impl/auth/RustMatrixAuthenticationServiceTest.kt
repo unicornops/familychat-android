@@ -7,6 +7,8 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package io.element.android.libraries.matrix.impl.auth
 
 import com.google.common.truth.Truth.assertThat
@@ -49,10 +51,14 @@ import io.element.android.tests.testutils.lambda.lambdaRecorder
 import io.element.android.tests.testutils.lambda.value
 import io.element.android.tests.testutils.testCoroutineDispatchers
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -133,7 +139,7 @@ class RustMatrixAuthenticationServiceTest {
                     )
                 }
             ),
-            sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> }),
+            sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _, _ -> }),
         )
 
         assertThat(sut.setHomeserver("smith.ie").isSuccess).isTrue()
@@ -198,7 +204,7 @@ class RustMatrixAuthenticationServiceTest {
 
     @Test
     fun `loginWithToken redeems the code against the given homeserver and stores the session`() = runTest {
-        val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> })
+        val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _, _ -> })
         val exchangeResult = lambdaRecorder<String, String, String, LoginTokenCredentials> { _, _, _ -> aLoginTokenCredentials() }
         val logoutResult = lambdaRecorder<String, String, Unit> { _, _ -> }
         val sut = createRustMatrixAuthenticationService(
@@ -318,7 +324,7 @@ class RustMatrixAuthenticationServiceTest {
                 aLoginTokenCredentials(userId = "@kid:smith.ie")
             }
             val sut = createRustMatrixAuthenticationService(
-                sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> }),
+                sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _, _ -> }),
                 clientBuilderProvider = aClientBuilderProvider(),
                 loginTokenExchanger = FakeLoginTokenExchanger(exchangeResult = exchangeResult),
             )
@@ -553,7 +559,7 @@ class RustMatrixAuthenticationServiceTest {
 
     @Test
     fun `loginWithToken completes even when the caller is cancelled`() = runTest {
-        val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> })
+        val sessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _, _ -> })
         val exchangeStarted = CompletableDeferred<Unit>()
         val releaseExchange = CompletableDeferred<Unit>()
         val sut = createRustMatrixAuthenticationService(
@@ -671,6 +677,45 @@ class RustMatrixAuthenticationServiceTest {
         closeResult.assertions().isCalledOnce()
     }
 
+    @Test
+    fun `loginWithQrCode cancels the login task when it is cancelled`() = runTest {
+        val cancelResult = lambdaRecorder<Unit> {}
+        val sut = createRustMatrixAuthenticationService(
+            // Upstream tests on matrix.org: not the Family Chat allowlist
+            enterpriseService = anAnyHomeserverEnterpriseService(),
+            clientBuilderProvider = FakeClientBuilderProvider(
+                provideResult = {
+                    FakeFfiClientBuilder(
+                        buildResult = {
+                            FakeFfiClient(
+                                newLoginWithQrCodeHandlerResult = {
+                                    FakeFfiLoginWithQrCodeHandler(
+                                        scanResult = { awaitCancellation() },
+                                        cancelResult = cancelResult,
+                                    )
+                                },
+                                closeResult = {},
+                            )
+                        },
+                    )
+                },
+            ),
+        )
+
+        // Family Chat: launched on the test scope, not backgroundScope. The Family Chat allowlist
+        // check delays a tick (simulateLongTask), and this coroutines version does not run
+        // backgroundScope coroutines from advanceUntilIdle, so the login would never start and the
+        // task would not be cancelled when the job is.
+        val job = launch {
+            sut.loginWithQrCode(aSdkQrCodeLoginData()) {}
+        }
+        advanceUntilIdle()
+        cancelResult.assertions().isNeverCalled()
+        job.cancel()
+        runCurrent()
+        cancelResult.assertions().isCalledOnce()
+    }
+
     private fun aSdkQrCodeLoginData() = SdkQrCodeLoginData(
         FakeFfiQrCodeData(
             baseUrlResult = { A_HOMESERVER_URL },
@@ -761,7 +806,7 @@ class RustMatrixAuthenticationServiceTest {
     private fun anAnyHomeserverEnterpriseService() = FakeEnterpriseService(isAllowedResolvedHomeserverUrlResult = { true })
 
     private fun TestScope.createRustMatrixAuthenticationService(
-        sessionStore: SessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _ -> }),
+        sessionStore: SessionStore = InMemorySessionStore(updateUserProfileResult = { _, _, _, _ -> }),
         clientBuilderProvider: ClientBuilderProvider = FakeClientBuilderProvider(),
         // The real Family Chat rules, not a copy of them
         enterpriseService: EnterpriseService = DefaultEnterpriseService(),
@@ -774,7 +819,7 @@ class RustMatrixAuthenticationServiceTest {
             sessionStore = sessionStore,
             clientBuilderProvider = clientBuilderProvider,
             // A successful login schedules the session's background work; that is not what these tests check.
-            workManagerScheduler = FakeWorkManagerScheduler(submitLambda = {}),
+            workManagerScheduler = FakeWorkManagerScheduler(submitLambda = {}, cancelLambda = { _, _ -> }),
             sqliteStoreBuilderProvider = sqliteStoreBuilderProvider,
         )
         return RustMatrixAuthenticationService(

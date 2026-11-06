@@ -77,14 +77,15 @@ dependencies {
     implementation(projects.libraries.oauth.api)
     implementation(projects.libraries.preferences.api)
     implementation(projects.libraries.uiUtils)
-    implementation(projects.libraries.wellknown.api)
     implementation(libs.androidx.browser)
     implementation(libs.androidx.webkit)
-    implementation(libs.serialization.json)
     api(projects.features.login.api)
 
     testCommonDependencies(libs, true)
+    // Family Chat: fakes for the token-login presenter and the well-known discovery in the
+    // resolved-homeserver backstop tests. Dropped by the v26.10.1 textual merge, restored.
     testImplementation(projects.features.login.test)
+    testImplementation(projects.libraries.wellknown.test)
     testImplementation(projects.features.enterprise.test)
     testImplementation(projects.features.preferences.test)
     testImplementation(projects.libraries.preferences.test)
@@ -92,7 +93,6 @@ dependencies {
     testImplementation(projects.libraries.oauth.test)
     testImplementation(projects.libraries.permissions.test)
     testImplementation(projects.libraries.sessionStorage.test)
-    testImplementation(projects.libraries.wellknown.test)
     testImplementation(libs.androidx.camera.camera2)
     testImplementation(libs.androidx.camera.lifecycle)
 }
