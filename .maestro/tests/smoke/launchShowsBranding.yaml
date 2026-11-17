@@ -1,0 +1,15 @@
+appId: ${MAESTRO_APP_ID}
+---
+# No-account smoke flow (unicornops/familychat-android#8): a fresh install launches and shows the sign-in landing
+# screen with the Family Chat name, not Element X's. Needs no account, no secrets and no network.
+- clearState
+- launchApp:
+    clearKeychain: true
+- extendedWaitUntil:
+    visible: "Welcome to the fastest Family Chat ever.*"
+    timeout: 60000
+- takeScreenshot: build/maestro/200-Landing
+# Nothing on the landing screen may name the upstream app.
+- assertNotVisible: ".*Element X.*"
+# The first action is the manual sign-in (nothing is forced and Family Chat has no account creation).
+- assertVisible: "Sign in manually"

@@ -1,0 +1,6 @@
+appId: ${MAESTRO_APP_ID}
+---
+# Flows that need no account, no secrets and no server of ours: run by .github/workflows/emulator-smoke.yml.
+#   maestro test -e MAESTRO_APP_ID=family.safechat.android .maestro/smokeTests.yaml
+- runFlow: tests/smoke/launchShowsBranding.yaml
+- runFlow: tests/smoke/rejectsNonFamilyServer.yaml
