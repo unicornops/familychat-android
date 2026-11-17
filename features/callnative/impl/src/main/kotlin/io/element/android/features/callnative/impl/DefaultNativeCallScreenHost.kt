@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2026 Element Creations Ltd.
+ * Copyright 2026 Unicorn Operations Ltd.
  *
  * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
  * Please see LICENSE files in the repository root for full details.
@@ -21,6 +22,7 @@ import io.element.android.compound.theme.Theme
 import io.element.android.features.callnative.api.NativeCallScreenHost
 import io.element.android.features.lockscreen.api.LockScreenService
 import io.element.android.features.lockscreen.api.handleSecureFlag
+import io.element.android.libraries.designsystem.theme.ParentalGateSafeContent
 
 /**
  * App-scoped, like the call screen it serves: that screen can open over the lock screen with no
@@ -52,7 +54,11 @@ class DefaultNativeCallScreenHost(
     override fun CallScreenContent(content: @Composable (style: ElementCallStyle?) -> Unit) {
         // The call is always dark, and the style's avatars are drawn with Compound's colours.
         ElementTheme(theme = Theme.Dark, applySystemBarsUpdate = false) {
-            content(rememberElementXCallStyle())
+            // Family Chat (parental gate): this screen is element-call-android's own Activity, outside ElementThemeApp, so
+            // add what ElementThemeApp adds: links through the gate and text menus without the actions that leave the app.
+            ParentalGateSafeContent {
+                content(rememberElementXCallStyle())
+            }
         }
     }
 }
