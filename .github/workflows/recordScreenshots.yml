@@ -20,11 +20,12 @@ jobs:
       contents: write
     name: Record screenshots on branch ${{ github.event.pull_request.head.ref || github.ref_name }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'Record-Screenshots'
 
     steps:
       - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        uses: jlumbroso/free-disk-space@3f13feab2962a87273d379ebc36ea159527e6cc9 # v1.3.2
         with:
           # This might remove tools that are actually needed, if set to "true" but frees about 6 GB
           tool-cache: true
@@ -54,13 +55,13 @@ jobs:
         with:
           persist-credentials: false
       - name: ☕️ Use JDK 21
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: 'temurin' # See 'Supported distributions' for available options
           java-version: '21'
       # Add gradle cache, this should speed up the process
       - name: Configure gradle
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/familychat' }}
       - name: Record screenshots
@@ -68,5 +69,5 @@ jobs:
         run: ./.github/workflows/scripts/recordScreenshots.sh
         env:
           GITHUB_TOKEN: ${{ secrets.DANGER_GITHUB_API_TOKEN || secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ secrets.GITHUB_REPOSITORY }}
+          GITHUB_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           GRADLE_ARGS: ${{ env.CI_GRADLE_ARG_PROPERTIES }}
