@@ -18,13 +18,14 @@ jobs:
   build:
     name: Build debug APKs
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     # Allow all jobs on familychat. Just one per PR.
     concurrency:
       group: ${{ github.ref == 'refs/heads/familychat' && format('build-familychat-{0}', github.sha) || format('build-{0}', github.ref) }}
       cancel-in-progress: true
     steps:
       - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        uses: jlumbroso/free-disk-space@3f13feab2962a87273d379ebc36ea159527e6cc9 # v1.3.2
         with:
           # This might remove tools that are actually needed, if set to "true" but frees about 6 GB
           tool-cache: true
@@ -44,12 +45,12 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
           persist-credentials: false
       - name: Use JDK 21
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: 'temurin' # See 'Supported distributions' for available options
           java-version: '21'
       - name: Configure gradle
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/familychat' }}
       - name: Assemble debug APKs
@@ -59,7 +60,7 @@ jobs:
           ./gradlew :app:processGplayReleaseMainManifest :app:processFdroidReleaseMainManifest $CI_GRADLE_ARG_PROPERTIES
           ./tools/check/check_families_manifest.sh
       - name: Upload debug APKs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: familychat-debug
           path: |

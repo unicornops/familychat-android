@@ -78,6 +78,8 @@ class KonsistParentalGateTest {
         "features/location/impl" to setOf("AndroidLocationActions.kt"),
         // Launches Element Classic, through startActivityBehindParentalGate.
         "features/login/impl" to setOf("MissingKeyBackupNode.kt"),
+        // Leaving the native call screen: the launch intent of the app's own package (MainActivity), never another app.
+        "features/callnative/impl" to setOf("DefaultNativeCallScreenHost.kt"),
     )
 
     @Test

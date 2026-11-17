@@ -153,9 +153,17 @@ configuration keys or code paths that need a Family Chat answer.
    `MapBottomSheetScaffold`. Since maplibre-compose 0.15 the MapLibre logo and attribution are
    composables that open the browser through `LocalUriHandler`; we draw the logo with
    `onClick = null` and use our `MapAttribution` instead of `ExpandingAttributionButton`.
+   Since v26.11.0 the native call screen (behind the `NativeCall` developer feature flag, off by
+   default) is element-call-android's own `ElementCallActivity`, outside `ElementThemeApp`:
+   `DefaultNativeCallScreenHost.CallScreenContent` wraps its content in `ParentalGateSafeContent`
+   instead, and leaving the screen starts our own launcher activity (on the Konsist allow-list for
+   that reason). What the library draws itself (any link or web content in the call UI) is not
+   covered by the tripwire: review it before that flag is ever turned on.
 4. **Strings:** ours live in `temporary.xml`, never `localazy.xml`. Localazy sync stays off.
 5. **Workflows:** `.github/workflows/`, see the list of deleted workflows below. Upstream edits to a
-   workflow we deleted show up as modify/delete conflicts: keep the deletion.
+   workflow we deleted show up as modify/delete conflicts: keep the deletion. Since v26.11.0
+   upstream's workflows set up the build through the `.github/actions/setup-build` composite action;
+   ours keep their own steps, so port upstream's action SHA bumps from that file by hand.
 6. **Dependencies:** for the Rust SDK Maven artefact (`matrix_sdk`) and other library versions, take
    upstream's.
 
