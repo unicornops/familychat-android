@@ -62,6 +62,12 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/familychat' }}
       - name: Assemble the minified F-Droid release APK (debug-signed)
         run: ./gradlew :app:assembleFdroidRelease $CI_GRADLE_ARG_PROPERTIES
+      # The build daemons hold up to 12 GB; the emulator needs that memory more.
+      - name: Free the memory held by the build daemons
+        run: |
+          ./gradlew --stop
+          pkill -f KotlinCompileDaemon || true
+          free -m
       - name: Locate the APK
         run: |
           apk=$(ls app/build/outputs/apk/fdroid/release/*-universal-release.apk)
