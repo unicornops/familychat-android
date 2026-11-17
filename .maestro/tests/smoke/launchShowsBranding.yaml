@@ -5,6 +5,7 @@ appId: ${MAESTRO_APP_ID}
 - clearState
 - launchApp:
     clearKeychain: true
+- runFlow: dismissLauncherAnr.yaml
 - extendedWaitUntil:
     visible: "Welcome to the fastest Family Chat ever.*"
     timeout: 60000

@@ -6,6 +6,7 @@ appId: ${MAESTRO_APP_ID}
 - clearState
 - launchApp:
     clearKeychain: true
+- runFlow: dismissLauncherAnr.yaml
 - extendedWaitUntil:
     visible: "Sign in manually"
     timeout: 60000

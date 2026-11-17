@@ -40,4 +40,10 @@ if grep -E "FATAL EXCEPTION|Process: ${APP_ID//./\\.}," "$OUT/logcat.txt" > "$OU
   status=1
 fi
 
+if grep -E "ANR in ${APP_ID//./\\.}( |\\()" "$OUT/logcat.txt" > "$OUT/anr.txt" && [ -s "$OUT/anr.txt" ]; then
+  echo "::error::The app reported an ANR during the smoke run, see logcat.txt"
+  cat "$OUT/anr.txt"
+  status=1
+fi
+
 exit "$status"
