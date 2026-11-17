@@ -1,0 +1,10 @@
+appId: ${MAESTRO_APP_ID}
+---
+# A cold CI emulator often shows "Pixel Launcher isn't responding" over the first app launch. That is the system
+# launcher, not the app, so wait it out. An ANR of the app itself is not dismissed here: emulator-smoke.sh fails
+# the job on one.
+- runFlow:
+    when:
+      visible: "Pixel Launcher isn't responding"
+    commands:
+      - tapOn: "Wait"

@@ -1,0 +1,29 @@
+appId: ${MAESTRO_APP_ID}
+---
+# No-account smoke flow (unicornops/familychat-android#8): the account provider screen refuses a homeserver that is
+# not a Family Chat server. matrix.org is well-formed, so the app asks it for its .well-known document (this is the
+# one flow that needs internet) and must refuse the homeserver it resolves to before any credentials are sent.
+- clearState
+- launchApp:
+    clearKeychain: true
+- runFlow: dismissLauncherAnr.yaml
+- extendedWaitUntil:
+    visible: "Sign in manually"
+    timeout: 60000
+- tapOn: "Sign in manually"
+- extendedWaitUntil:
+    visible: "Enter your account provider"
+    timeout: 10000
+- tapOn:
+    id: "change_server-server"
+- inputText: "matrix.org"
+- takeScreenshot: build/maestro/210-AccountProviderTyped
+- tapOn:
+    id: "login-continue"
+- extendedWaitUntil:
+    visible: "This server isn.t a Family Chat server"
+    timeout: 60000
+- takeScreenshot: build/maestro/211-NotAFamilyChatServer
+# Dismissing the error leaves the user on the same screen, not signed in anywhere.
+- tapOn: "OK"
+- assertVisible: "Enter your account provider"
